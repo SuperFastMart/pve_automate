@@ -1,0 +1,31 @@
+sizes:
+  XS:
+    display_name: "Extra Small"
+    cpu_cores: 1
+    ram_mb: 2048
+    disk_gb: 32
+    description: "Lightweight services, monitoring agents"
+  S:
+    display_name: "Small"
+    cpu_cores: 2
+    ram_mb: 4096
+    disk_gb: 64
+    description: "Small applications, development servers"
+  M:
+    display_name: "Medium"
+    cpu_cores: 4
+    ram_mb: 8192
+    disk_gb: 128
+    description: "Standard workloads, web servers"
+  L:
+    display_name: "Large"
+    cpu_cores: 8
+    ram_mb: 16384
+    disk_gb: 256
+    description: "Databases, application servers"
+  XL:
+    display_name: "Extra Large"
+    cpu_cores: 16
+    ram_mb: 32768
+    disk_gb: 512
+    description: "Heavy databases, high-performance computing"

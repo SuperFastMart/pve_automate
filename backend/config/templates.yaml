@@ -1,0 +1,33 @@
+templates:
+  ubuntu-2204:
+    display_name: "Ubuntu 22.04 LTS"
+    vmid: 9000
+    node: "pve-node-01"
+    cloud_init: true
+  ubuntu-2404:
+    display_name: "Ubuntu 24.04 LTS"
+    vmid: 9001
+    node: "pve-node-01"
+    cloud_init: true
+  win2022:
+    display_name: "Windows Server 2022"
+    vmid: 9010
+    node: "pve-node-01"
+    cloud_init: false
+  win2025:
+    display_name: "Windows Server 2025"
+    vmid: 9011
+    node: "pve-node-01"
+    cloud_init: false
+
+workload_types:
+  - key: generic
+    display_name: "Generic Server"
+  - key: sql
+    display_name: "SQL Database"
+  - key: web
+    display_name: "Web Server"
+  - key: proxy
+    display_name: "Reverse Proxy / Load Balancer"
+  - key: app
+    display_name: "Application Server"

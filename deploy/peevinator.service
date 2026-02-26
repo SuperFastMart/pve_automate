@@ -1,0 +1,21 @@
+[Unit]
+Description=Peevinator Backend (FastAPI/Uvicorn)
+After=network.target
+
+[Service]
+Type=exec
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/peevinator/backend
+ExecStart=/opt/peevinator/backend/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=5
+EnvironmentFile=/opt/peevinator/backend/.env
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=peevinator
+
+[Install]
+WantedBy=multi-user.target
