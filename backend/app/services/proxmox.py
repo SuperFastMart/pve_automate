@@ -128,11 +128,8 @@ class ProxmoxService:
         for node_info in self.get_nodes():
             node = node_info["node"]
             vms = self.proxmox.nodes(node).qemu.get()
-            logger.info(f"Node {node}: found {len(vms)} VMs")
             for vm in vms:
-                tmpl_flag = vm.get("template")
-                logger.info(f"  VMID {vm.get('vmid')} name={vm.get('name')} template={tmpl_flag!r} (type={type(tmpl_flag).__name__})")
-                if tmpl_flag in (1, "1", True):
+                if vm.get("template") in (1, "1", True):
                     templates.append({
                         "vmid": vm["vmid"],
                         "name": vm.get("name", ""),
