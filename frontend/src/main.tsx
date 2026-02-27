@@ -20,16 +20,31 @@ const queryClient = new QueryClient({
   },
 })
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <MsalProvider instance={msalInstance}>
-      <AuthProvider>
-        <QueryClientProvider client={queryClient}>
-          <BrowserRouter>
-            <App />
-          </BrowserRouter>
-        </QueryClientProvider>
-      </AuthProvider>
-    </MsalProvider>
-  </StrictMode>,
-)
+// Wait for MSAL to initialize before rendering
+msalInstance.initialize().then(() => {
+  // Handle redirect response after login
+  msalInstance.handleRedirectPromise().then((response) => {
+    if (response) {
+      msalInstance.setActiveAccount(response.account)
+    } else {
+      const accounts = msalInstance.getAllAccounts()
+      if (accounts.length > 0) {
+        msalInstance.setActiveAccount(accounts[0])
+      }
+    }
+
+    createRoot(document.getElementById('root')!).render(
+      <StrictMode>
+        <MsalProvider instance={msalInstance}>
+          <AuthProvider>
+            <QueryClientProvider client={queryClient}>
+              <BrowserRouter>
+                <App />
+              </BrowserRouter>
+            </QueryClientProvider>
+          </AuthProvider>
+        </MsalProvider>
+      </StrictMode>,
+    )
+  })
+})
