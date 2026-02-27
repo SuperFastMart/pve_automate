@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -34,12 +34,42 @@ export default function VMRequestForm() {
   const { data: locations } = useQuery({ queryKey: ['locations'], queryFn: getLocations })
   const [selectedLocation, setSelectedLocation] = useState<string>('')
   const [selectedSubnet, setSelectedSubnet] = useState<string>('')
+  const [subnetSearch, setSubnetSearch] = useState('')
+  const [subnetDropdownOpen, setSubnetDropdownOpen] = useState(false)
+  const subnetRef = useRef<HTMLDivElement>(null)
 
   // Filter subnets by selected location
-  const filteredSubnets = subnets?.filter((s) => {
+  const locationFiltered = subnets?.filter((s) => {
     if (!selectedLocation) return true
     return s.locationId !== null && String(s.locationId) === selectedLocation
   })
+
+  // Further filter by search text
+  const filteredSubnets = locationFiltered?.filter((s) => {
+    if (!subnetSearch) return true
+    const label = s.description
+      ? `${s.description} ${s.subnet}/${s.mask}`
+      : `${s.subnet}/${s.mask}`
+    return label.toLowerCase().includes(subnetSearch.toLowerCase())
+  })
+
+  // Get display label for a subnet
+  const subnetLabel = (s: { description: string; subnet: string; mask: string }) =>
+    s.description ? `${s.description} (${s.subnet}/${s.mask})` : `${s.subnet}/${s.mask}`
+
+  // Selected subnet display text
+  const selectedSubnetObj = subnets?.find((s) => String(s.id) === selectedSubnet)
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (subnetRef.current && !subnetRef.current.contains(e.target as Node)) {
+        setSubnetDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
 
   const {
     register,
@@ -190,6 +220,7 @@ export default function VMRequestForm() {
                     onChange={(e) => {
                       setSelectedLocation(e.target.value)
                       setSelectedSubnet('')
+                      setSubnetSearch('')
                     }}
                     className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
                   >
@@ -202,20 +233,75 @@ export default function VMRequestForm() {
                   </select>
                 </div>
               )}
-              <div>
+              <div ref={subnetRef} className="relative">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Network / Subnet</label>
-                <select
-                  value={selectedSubnet}
-                  onChange={(e) => setSelectedSubnet(e.target.value)}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                <div
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500 cursor-text flex items-center gap-2"
+                  onClick={() => setSubnetDropdownOpen(true)}
                 >
-                  <option value="">No subnet (manual IP assignment)</option>
-                  {filteredSubnets?.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.description ? `${s.description} (${s.subnet}/${s.mask})` : `${s.subnet}/${s.mask}`}
-                    </option>
-                  ))}
-                </select>
+                  {selectedSubnet && !subnetDropdownOpen ? (
+                    <div className="flex items-center justify-between w-full">
+                      <span className="truncate">{selectedSubnetObj ? subnetLabel(selectedSubnetObj) : ''}</span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setSelectedSubnet('')
+                          setSubnetSearch('')
+                        }}
+                        className="text-gray-400 hover:text-gray-600 ml-2 flex-shrink-0"
+                      >
+                        &times;
+                      </button>
+                    </div>
+                  ) : (
+                    <input
+                      type="text"
+                      value={subnetSearch}
+                      onChange={(e) => {
+                        setSubnetSearch(e.target.value)
+                        setSubnetDropdownOpen(true)
+                      }}
+                      onFocus={() => setSubnetDropdownOpen(true)}
+                      placeholder={selectedSubnet ? '' : 'Search subnets or select below...'}
+                      className="w-full outline-none bg-transparent"
+                    />
+                  )}
+                </div>
+                {subnetDropdownOpen && (
+                  <ul className="absolute z-10 mt-1 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
+                    <li
+                      className={`px-3 py-2 text-sm cursor-pointer hover:bg-indigo-50 ${
+                        !selectedSubnet ? 'bg-indigo-50 font-medium' : ''
+                      }`}
+                      onClick={() => {
+                        setSelectedSubnet('')
+                        setSubnetSearch('')
+                        setSubnetDropdownOpen(false)
+                      }}
+                    >
+                      No subnet (manual IP assignment)
+                    </li>
+                    {filteredSubnets?.map((s) => (
+                      <li
+                        key={s.id}
+                        className={`px-3 py-2 text-sm cursor-pointer hover:bg-indigo-50 ${
+                          String(s.id) === selectedSubnet ? 'bg-indigo-50 font-medium' : ''
+                        }`}
+                        onClick={() => {
+                          setSelectedSubnet(String(s.id))
+                          setSubnetSearch('')
+                          setSubnetDropdownOpen(false)
+                        }}
+                      >
+                        {subnetLabel(s)}
+                      </li>
+                    ))}
+                    {filteredSubnets?.length === 0 && (
+                      <li className="px-3 py-2 text-sm text-gray-400">No matching subnets</li>
+                    )}
+                  </ul>
+                )}
                 <p className="mt-1 text-xs text-gray-400">
                   Select a subnet to auto-allocate an IP address from phpIPAM
                 </p>
