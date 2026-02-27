@@ -6,6 +6,7 @@ import {
   testProxmoxConnection,
   testJiraConnection,
   testPhpIpamConnection,
+  testSmtpConnection,
 } from '../api/client'
 
 export function useSettings() {
@@ -51,5 +52,11 @@ export function useTestJira() {
 export function useTestPhpIpam() {
   return useMutation({
     mutationFn: testPhpIpamConnection,
+  })
+}
+
+export function useTestSmtp() {
+  return useMutation({
+    mutationFn: testSmtpConnection,
   })
 }

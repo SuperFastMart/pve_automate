@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useSettings, useBulkUpdateSettings, useDeleteSetting, useTestProxmox, useTestJira, useTestPhpIpam } from '../hooks/useSettings'
+import { useSettings, useBulkUpdateSettings, useDeleteSetting, useTestProxmox, useTestJira, useTestPhpIpam, useTestSmtp } from '../hooks/useSettings'
 import type { SettingsGroup } from '../types'
 
 function SettingsGroupCard({ group, onSaved }: { group: SettingsGroup; onSaved: () => void }) {
@@ -12,6 +12,7 @@ function SettingsGroupCard({ group, onSaved }: { group: SettingsGroup; onSaved: 
   const testProxmox = useTestProxmox()
   const testJira = useTestJira()
   const testPhpIpam = useTestPhpIpam()
+  const testSmtp = useTestSmtp()
 
   useEffect(() => {
     const initial: Record<string, string> = {}
@@ -70,22 +71,25 @@ function SettingsGroupCard({ group, onSaved }: { group: SettingsGroup; onSaved: 
       <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
         <h3 className="text-lg font-semibold text-gray-900">{group.display_name}</h3>
         <div className="flex items-center gap-2">
-          {(group.group === 'proxmox' || group.group === 'jira' || group.group === 'phpipam') && (
+          {(group.group === 'proxmox' || group.group === 'jira' || group.group === 'phpipam' || group.group === 'smtp') && (
             <button
               onClick={() => {
                 if (group.group === 'proxmox') testProxmox.mutate()
                 else if (group.group === 'jira') testJira.mutate()
                 else if (group.group === 'phpipam') testPhpIpam.mutate()
+                else if (group.group === 'smtp') testSmtp.mutate()
               }}
               disabled={
                 group.group === 'proxmox' ? testProxmox.isPending :
                 group.group === 'jira' ? testJira.isPending :
+                group.group === 'smtp' ? testSmtp.isPending :
                 testPhpIpam.isPending
               }
               className="px-3 py-1.5 text-sm font-medium text-indigo-600 border border-indigo-300 rounded-md hover:bg-indigo-50 disabled:opacity-50"
             >
               {(group.group === 'proxmox' ? testProxmox.isPending :
                 group.group === 'jira' ? testJira.isPending :
+                group.group === 'smtp' ? testSmtp.isPending :
                 testPhpIpam.isPending) ? 'Testing...' : 'Test Connection'}
             </button>
           )}
@@ -131,6 +135,17 @@ function SettingsGroupCard({ group, onSaved }: { group: SettingsGroup; onSaved: 
           }`}
         >
           {testPhpIpam.data.message}
+        </div>
+      )}
+      {group.group === 'smtp' && testSmtp.data && (
+        <div
+          className={`mx-6 mt-4 px-4 py-3 rounded-md text-sm ${
+            testSmtp.data.success
+              ? 'bg-green-50 text-green-800 border border-green-200'
+              : 'bg-red-50 text-red-800 border border-red-200'
+          }`}
+        >
+          {testSmtp.data.message}
         </div>
       )}
 

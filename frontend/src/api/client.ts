@@ -97,6 +97,11 @@ export async function testPhpIpamConnection(): Promise<ConnectionTestResult> {
   return data
 }
 
+export async function testSmtpConnection(): Promise<ConnectionTestResult> {
+  const { data } = await api.post<ConnectionTestResult>('/settings/smtp/test')
+  return data
+}
+
 export async function getSubnets(): Promise<Subnet[]> {
   const { data } = await api.get<Subnet[]>('/config/subnets')
   return data
