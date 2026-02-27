@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useCreateVMRequest, useTShirtSizes, useOSTemplates, useWorkloadTypes } from '../hooks/useVMRequests'
-import { getSubnets, getLocations } from '../api/client'
+import { getSubnets, getLocations, getEnvironments } from '../api/client'
 import TShirtSizeCard from './TShirtSizeCard'
 
 const schema = z.object({
@@ -43,11 +43,25 @@ export default function VMRequestForm() {
   const { data: workloadTypes, isLoading: workloadsLoading } = useWorkloadTypes()
   const { data: subnets } = useQuery({ queryKey: ['subnets'], queryFn: getSubnets })
   const { data: locations } = useQuery({ queryKey: ['locations'], queryFn: getLocations })
+  const { data: environments } = useQuery({ queryKey: ['environments'], queryFn: getEnvironments })
+  const [selectedEnvironment, setSelectedEnvironment] = useState<string>('')
   const [selectedLocation, setSelectedLocation] = useState<string>('')
   const [selectedSubnet, setSelectedSubnet] = useState<string>('')
   const [subnetSearch, setSubnetSearch] = useState('')
   const [subnetDropdownOpen, setSubnetDropdownOpen] = useState(false)
   const subnetRef = useRef<HTMLDivElement>(null)
+
+  // Auto-select default environment (or the only one)
+  useEffect(() => {
+    if (environments && environments.length > 0 && !selectedEnvironment) {
+      const defaultEnv = environments.find((e) => e.is_default)
+      if (defaultEnv) {
+        setSelectedEnvironment(String(defaultEnv.id))
+      } else if (environments.length === 1) {
+        setSelectedEnvironment(String(environments[0].id))
+      }
+    }
+  }, [environments, selectedEnvironment])
 
   // Filter subnets by selected location
   const locationFiltered = subnets?.filter((s) => {
@@ -99,6 +113,7 @@ export default function VMRequestForm() {
     const { cpu_cores, ram_mb, disk_gb, ...rest } = data
     const payload = {
       ...rest,
+      ...(selectedEnvironment ? { environment_id: Number(selectedEnvironment) } : {}),
       ...(selectedSubnet ? { subnet_id: Number(selectedSubnet) } : {}),
       ...(data.tshirt_size === 'Custom' ? { cpu_cores, ram_mb, disk_gb } : {}),
     }
@@ -141,6 +156,31 @@ export default function VMRequestForm() {
           </div>
         </div>
       </div>
+
+      {/* Environment Selection */}
+      {environments && environments.length > 0 && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Environment</h2>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Proxmox Environment</label>
+            <select
+              value={selectedEnvironment}
+              onChange={(e) => setSelectedEnvironment(e.target.value)}
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+            >
+              {environments.length > 1 && <option value="">Select environment...</option>}
+              {environments.map((env) => (
+                <option key={env.id} value={env.id}>
+                  {env.display_name}{env.description ? ` — ${env.description}` : ''}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-gray-400">
+              Select the Proxmox cluster where this VM will be deployed
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* VM Details */}
       <div className="bg-white rounded-lg shadow p-6">

@@ -16,6 +16,7 @@ export default function RequestDetail() {
     { label: 'Workload Type', value: req.workload_type },
     { label: 'Operating System', value: req.os_template },
     { label: 'Size', value: `${req.tshirt_size} (${req.cpu_cores} vCPU, ${req.ram_mb >= 1024 ? `${req.ram_mb / 1024} GB` : `${req.ram_mb} MB`} RAM, ${req.disk_gb} GB disk)` },
+    ...(req.environment_name ? [{ label: 'Environment', value: req.environment_name }] : []),
   ]
 
   const provisioningDetails = [

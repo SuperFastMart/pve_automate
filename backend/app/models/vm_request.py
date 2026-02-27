@@ -1,7 +1,8 @@
 import enum
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, Enum, Integer, String, Text
+from sqlalchemy import Column, DateTime, Enum, ForeignKey, Integer, String, Text
+from sqlalchemy.orm import relationship
 
 from app.database import Base
 
@@ -52,6 +53,12 @@ class VMRequest(Base):
     vlan_id = Column(Integer, nullable=True)
     subnet_id = Column(Integer, nullable=True)
     phpipam_address_id = Column(Integer, nullable=True)
+    environment_id = Column(Integer, ForeignKey("pve_environments.id"), nullable=True)
+    environment_name = Column(String(200), nullable=True)
+    deployment_id = Column(Integer, ForeignKey("deployments.id"), nullable=True)
+
+    # Relationships
+    deployment = relationship("Deployment", back_populates="vm_requests")
 
     # Error tracking
     error_message = Column(Text, nullable=True)

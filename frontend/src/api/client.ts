@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { VMRequest, VMRequestList, TShirtSizes, OSTemplates, WorkloadType, SettingsGroup, SettingItem, ConnectionTestResult, PVETemplate, OSTemplateMapping, Subnet, Location } from '../types'
+import type { VMRequest, VMRequestList, TShirtSizes, OSTemplates, WorkloadType, SettingsGroup, SettingItem, ConnectionTestResult, PVETemplate, OSTemplateMapping, Subnet, Location, PVEEnvironment, PVEEnvironmentListItem, Deployment, DeploymentList } from '../types'
 
 const api = axios.create({
   baseURL: '/api/v1',
@@ -14,6 +14,7 @@ export interface CreateVMRequestPayload {
   os_template: string
   tshirt_size: string
   subnet_id?: number
+  environment_id?: number
   cpu_cores?: number
   ram_mb?: number
   disk_gb?: number
@@ -138,4 +139,81 @@ export async function updateTemplateMapping(id: number, payload: Partial<Omit<OS
 
 export async function deleteTemplateMapping(id: number): Promise<void> {
   await api.delete(`/settings/templates/${id}`)
+}
+
+// Environment management API
+export async function getEnvironments(): Promise<PVEEnvironmentListItem[]> {
+  const { data } = await api.get<PVEEnvironmentListItem[]>('/environments')
+  return data
+}
+
+export async function getAllEnvironments(): Promise<PVEEnvironment[]> {
+  const { data } = await api.get<PVEEnvironment[]>('/environments/all')
+  return data
+}
+
+export async function createEnvironment(payload: Omit<PVEEnvironment, 'id' | 'created_at' | 'updated_at'> & { pve_token_value: string }): Promise<PVEEnvironment> {
+  const { data } = await api.post<PVEEnvironment>('/environments', payload)
+  return data
+}
+
+export async function updateEnvironment(id: number, payload: Record<string, unknown>): Promise<PVEEnvironment> {
+  const { data } = await api.put<PVEEnvironment>(`/environments/${id}`, payload)
+  return data
+}
+
+export async function deleteEnvironment(id: number): Promise<void> {
+  await api.delete(`/environments/${id}`)
+}
+
+export async function testEnvironmentConnection(id: number): Promise<ConnectionTestResult> {
+  const { data } = await api.post<ConnectionTestResult>(`/environments/${id}/test`)
+  return data
+}
+
+// Deployment API
+export interface DeploymentVMPayload {
+  vm_name: string
+  description?: string
+  os_template: string
+  tshirt_size: string
+  subnet_id?: number
+  cpu_cores?: number
+  ram_mb?: number
+  disk_gb?: number
+}
+
+export interface CreateDeploymentPayload {
+  name: string
+  description?: string
+  requestor_name: string
+  requestor_email: string
+  workload_type: string
+  environment_id?: number
+  vms: DeploymentVMPayload[]
+}
+
+export async function createDeployment(payload: CreateDeploymentPayload): Promise<Deployment> {
+  const { data } = await api.post<Deployment>('/deployments', payload)
+  return data
+}
+
+export async function getDeployments(page = 1, size = 20): Promise<DeploymentList> {
+  const { data } = await api.get<DeploymentList>('/deployments', { params: { page, size } })
+  return data
+}
+
+export async function getDeployment(id: number): Promise<Deployment> {
+  const { data } = await api.get<Deployment>(`/deployments/${id}`)
+  return data
+}
+
+export async function approveDeployment(id: number): Promise<Deployment> {
+  const { data } = await api.post<Deployment>(`/deployments/${id}/approve`)
+  return data
+}
+
+export async function rejectDeployment(id: number): Promise<Deployment> {
+  const { data } = await api.post<Deployment>(`/deployments/${id}/reject`)
+  return data
 }

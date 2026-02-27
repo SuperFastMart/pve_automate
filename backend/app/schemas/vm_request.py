@@ -21,6 +21,7 @@ class VMRequestCreate(BaseModel):
     os_template: str
     tshirt_size: str = Field(..., pattern=r"^(XS|S|M|L|XL|Custom)$")
     subnet_id: Optional[int] = None
+    environment_id: Optional[int] = None
 
     # Custom size fields (required only when tshirt_size == "Custom")
     cpu_cores: Optional[int] = Field(None, ge=1, le=128)
@@ -62,6 +63,9 @@ class VMRequestResponse(BaseModel):
     ip_address: Optional[str]
     subnet_id: Optional[int]
     phpipam_address_id: Optional[int]
+    environment_id: Optional[int]
+    environment_name: Optional[str]
+    deployment_id: Optional[int]
     error_message: Optional[str]
     created_at: datetime
     updated_at: datetime

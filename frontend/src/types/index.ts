@@ -24,11 +24,84 @@ export interface VMRequest {
   proxmox_vmid: number | null
   proxmox_node: string | null
   ip_address: string | null
+  environment_id: number | null
+  environment_name: string | null
+  deployment_id: number | null
   error_message: string | null
   created_at: string
   updated_at: string
   approved_at: string | null
   completed_at: string | null
+}
+
+export type DeploymentStatus =
+  | 'pending_approval'
+  | 'approved'
+  | 'rejected'
+  | 'provisioning'
+  | 'partially_completed'
+  | 'completed'
+  | 'failed'
+
+export interface Deployment {
+  id: number
+  name: string
+  description: string | null
+  requestor_name: string
+  requestor_email: string
+  workload_type: string
+  environment_id: number | null
+  environment_name: string | null
+  status: DeploymentStatus
+  jira_issue_key: string | null
+  jira_issue_url: string | null
+  error_message: string | null
+  created_at: string
+  updated_at: string
+  approved_at: string | null
+  completed_at: string | null
+  vm_requests: VMRequest[]
+}
+
+export interface DeploymentListItem {
+  id: number
+  name: string
+  requestor_name: string
+  requestor_email: string
+  workload_type: string
+  environment_name: string | null
+  status: DeploymentStatus
+  jira_issue_key: string | null
+  vm_count: number
+  created_at: string
+}
+
+export interface DeploymentList {
+  items: DeploymentListItem[]
+  total: number
+}
+
+export interface PVEEnvironment {
+  id: number
+  name: string
+  display_name: string
+  description: string | null
+  pve_host: string
+  pve_user: string
+  pve_token_name: string
+  pve_verify_ssl: boolean
+  enabled: boolean
+  is_default: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface PVEEnvironmentListItem {
+  id: number
+  name: string
+  display_name: string
+  description: string | null
+  is_default: boolean
 }
 
 export interface VMRequestList {

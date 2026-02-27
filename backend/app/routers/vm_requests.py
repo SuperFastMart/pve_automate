@@ -40,6 +40,20 @@ async def create_vm_request(
         ram_mb = size_config["ram_mb"]
         disk_gb = size_config["disk_gb"]
 
+    # Resolve environment (if specified)
+    environment_name = None
+    if payload.environment_id:
+        from app.models.pve_environment import PVEEnvironment
+        env_result = await db.execute(
+            select(PVEEnvironment).where(PVEEnvironment.id == payload.environment_id)
+        )
+        env = env_result.scalar_one_or_none()
+        if not env:
+            raise HTTPException(status_code=400, detail="Selected environment not found")
+        if not env.enabled:
+            raise HTTPException(status_code=400, detail="Selected environment is disabled")
+        environment_name = env.display_name
+
     vm_request = VMRequest(
         vm_name=payload.vm_name,
         description=payload.description,
@@ -52,6 +66,8 @@ async def create_vm_request(
         ram_mb=ram_mb,
         disk_gb=disk_gb,
         subnet_id=payload.subnet_id,
+        environment_id=payload.environment_id,
+        environment_name=environment_name,
         status=RequestStatus.PENDING_APPROVAL,
     )
 
@@ -99,6 +115,8 @@ async def create_vm_request(
                 f"Size: {vm_request.tshirt_size} "
                 f"({vm_request.cpu_cores} vCPU, {vm_request.ram_mb} MB RAM, {vm_request.disk_gb} GB disk)",
             ]
+            if vm_request.environment_name:
+                desc_lines.append(f"Environment: {vm_request.environment_name}")
             if vm_request.ip_address:
                 desc_lines.append(f"IP Address: {vm_request.ip_address}")
             if vm_request.subnet_id:
@@ -206,6 +224,11 @@ async def approve_vm_request(
 
     if not vm_request:
         raise HTTPException(status_code=404, detail="VM request not found")
+    if vm_request.deployment_id:
+        raise HTTPException(
+            status_code=400,
+            detail="This VM belongs to a deployment. Approve/reject the deployment instead.",
+        )
     if vm_request.status != RequestStatus.PENDING_APPROVAL:
         raise HTTPException(status_code=400, detail=f"Cannot approve request in '{vm_request.status.value}' state")
 
@@ -237,6 +260,11 @@ async def reject_vm_request(
 
     if not vm_request:
         raise HTTPException(status_code=404, detail="VM request not found")
+    if vm_request.deployment_id:
+        raise HTTPException(
+            status_code=400,
+            detail="This VM belongs to a deployment. Approve/reject the deployment instead.",
+        )
     if vm_request.status != RequestStatus.PENDING_APPROVAL:
         raise HTTPException(status_code=400, detail=f"Cannot reject request in '{vm_request.status.value}' state")
 
