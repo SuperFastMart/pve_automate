@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useVMRequests, useApproveVMRequest, useRejectVMRequest } from '../hooks/useVMRequests'
-import { useDeployments, useApproveDeployment, useRejectDeployment } from '../hooks/useDeployments'
+import { useVMRequests, useApproveVMRequest, useRejectVMRequest, useRetryVMRequest } from '../hooks/useVMRequests'
+import { useDeployments, useApproveDeployment, useRejectDeployment, useRetryDeployment } from '../hooks/useDeployments'
 import StatusBadge from '../components/StatusBadge'
 import AdminSettings from '../components/AdminSettings'
 import AdminTemplates from '../components/AdminTemplates'
@@ -48,10 +48,12 @@ export default function Admin() {
   const { data, isLoading, error } = useVMRequests(1, 100)
   const approve = useApproveVMRequest()
   const reject = useRejectVMRequest()
+  const retry = useRetryVMRequest()
 
   const { data: deploymentData, isLoading: deploymentsLoading } = useDeployments(1, 100)
   const approveDeployment = useApproveDeployment()
   const rejectDeployment = useRejectDeployment()
+  const retryDeployment = useRetryDeployment()
 
   const filteredItems = data?.items.filter(
     (req) => !activeFilter || req.status === activeFilter
@@ -269,6 +271,15 @@ export default function Admin() {
                                 </button>
                               </div>
                             )}
+                            {req.status === 'provisioning_failed' && !req.deployment_id && (
+                              <button
+                                onClick={() => retry.mutate(req.id)}
+                                disabled={retry.isPending}
+                                className="px-2 py-1 text-xs font-medium text-white bg-amber-600 rounded hover:bg-amber-700 disabled:opacity-50"
+                              >
+                                {retry.isPending ? 'Retrying...' : 'Retry'}
+                              </button>
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -352,6 +363,15 @@ export default function Admin() {
                                   Reject
                                 </button>
                               </div>
+                            )}
+                            {(dep.status === 'failed' || dep.status === 'partially_completed') && (
+                              <button
+                                onClick={() => retryDeployment.mutate(dep.id)}
+                                disabled={retryDeployment.isPending}
+                                className="px-2 py-1 text-xs font-medium text-white bg-amber-600 rounded hover:bg-amber-700 disabled:opacity-50"
+                              >
+                                {retryDeployment.isPending ? 'Retrying...' : 'Retry Failed'}
+                              </button>
                             )}
                           </td>
                         </tr>

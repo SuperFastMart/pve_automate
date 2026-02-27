@@ -5,6 +5,7 @@ import {
   createVMRequest,
   approveVMRequest,
   rejectVMRequest,
+  retryVMRequest,
   getTShirtSizes,
   getOSTemplates,
   getWorkloadTypes,
@@ -80,6 +81,16 @@ export function useRejectVMRequest() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (id: number) => rejectVMRequest(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vm-requests'] })
+    },
+  })
+}
+
+export function useRetryVMRequest() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => retryVMRequest(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vm-requests'] })
     },

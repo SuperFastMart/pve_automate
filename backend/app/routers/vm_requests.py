@@ -288,6 +288,55 @@ async def reject_vm_request(
     return vm_request
 
 
+@router.post("/{request_id}/retry", response_model=VMRequestResponse)
+async def retry_vm_request(
+    request_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """Retry provisioning for a failed VM request."""
+    result = await db.execute(select(VMRequest).where(VMRequest.id == request_id))
+    vm_request = result.scalar_one_or_none()
+
+    if not vm_request:
+        raise HTTPException(status_code=404, detail="VM request not found")
+    if vm_request.status != RequestStatus.PROVISIONING_FAILED:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Can only retry failed requests (current: '{vm_request.status.value}')",
+        )
+
+    vm_request.status = RequestStatus.APPROVED
+    vm_request.error_message = None
+    await db.commit()
+    await db.refresh(vm_request)
+
+    # Fire-and-forget background provisioning
+    asyncio.create_task(provision_vm(request_id))
+
+    # Post Jira comment (fire-and-forget)
+    if vm_request.jira_issue_key:
+        asyncio.create_task(
+            _jira_comment(vm_request.jira_issue_key, "Retrying provisioning via admin UI")
+        )
+
+    return vm_request
+
+
+async def _jira_comment(issue_key: str, comment: str) -> None:
+    """Background task: add a comment to a Jira issue."""
+    from app.database import async_session
+
+    try:
+        async with async_session() as db:
+            jira = await get_jira_service(db)
+            if not jira:
+                return
+            await jira.add_comment(issue_key, comment)
+            await jira.close()
+    except Exception as e:
+        logger.warning(f"Failed to add Jira comment to {issue_key}: {e}")
+
+
 async def _sync_jira_transition(issue_key: str, action: str, comment: str) -> None:
     """Background task: transition Jira issue and add a comment."""
     from app.database import async_session

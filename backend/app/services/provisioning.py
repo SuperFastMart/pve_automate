@@ -320,6 +320,11 @@ async def provision_deployment(deployment_id: int) -> None:
             failed = 0
 
             for vm_req in deployment.vm_requests:
+                # Skip already-completed VMs (important for retry)
+                if vm_req.status == RequestStatus.COMPLETED:
+                    completed += 1
+                    continue
+
                 try:
                     vm_req.status = RequestStatus.PROVISIONING
                     vm_req.error_message = None

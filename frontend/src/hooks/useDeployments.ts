@@ -5,6 +5,7 @@ import {
   getDeployment,
   approveDeployment,
   rejectDeployment,
+  retryDeployment,
 } from '../api/client'
 import type { CreateDeploymentPayload } from '../api/client'
 
@@ -51,6 +52,18 @@ export function useRejectDeployment() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['deployments'] })
       queryClient.invalidateQueries({ queryKey: ['deployment'] })
+    },
+  })
+}
+
+export function useRetryDeployment() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => retryDeployment(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['deployments'] })
+      queryClient.invalidateQueries({ queryKey: ['deployment'] })
+      queryClient.invalidateQueries({ queryKey: ['vm-requests'] })
     },
   })
 }

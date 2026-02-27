@@ -61,6 +61,11 @@ export async function rejectVMRequest(id: number): Promise<VMRequest> {
   return data
 }
 
+export async function retryVMRequest(id: number): Promise<VMRequest> {
+  const { data } = await api.post<VMRequest>(`/requests/${id}/retry`)
+  return data
+}
+
 // Settings API
 export async function getSettings(): Promise<SettingsGroup[]> {
   const { data } = await api.get<SettingsGroup[]>('/settings')
@@ -218,5 +223,10 @@ export async function approveDeployment(id: number): Promise<Deployment> {
 
 export async function rejectDeployment(id: number): Promise<Deployment> {
   const { data } = await api.post<Deployment>(`/deployments/${id}/reject`)
+  return data
+}
+
+export async function retryDeployment(id: number): Promise<Deployment> {
+  const { data } = await api.post<Deployment>(`/deployments/${id}/retry`)
   return data
 }

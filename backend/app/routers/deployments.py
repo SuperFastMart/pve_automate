@@ -346,6 +346,72 @@ async def reject_deployment(
     return deployment
 
 
+@router.post("/{deployment_id}/retry", response_model=DeploymentResponse)
+async def retry_deployment(
+    deployment_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """Retry provisioning for a failed or partially completed deployment.
+
+    Only re-provisions VMs that failed — completed VMs are left untouched.
+    """
+    result = await db.execute(
+        select(Deployment)
+        .options(selectinload(Deployment.vm_requests))
+        .where(Deployment.id == deployment_id)
+    )
+    deployment = result.scalar_one_or_none()
+    if not deployment:
+        raise HTTPException(status_code=404, detail="Deployment not found")
+    if deployment.status not in (DeploymentStatus.FAILED, DeploymentStatus.PARTIALLY_COMPLETED):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Can only retry failed deployments (current: '{deployment.status.value}')",
+        )
+
+    # Reset only the failed VMs
+    failed_count = 0
+    for vm_req in deployment.vm_requests:
+        if vm_req.status == RequestStatus.PROVISIONING_FAILED:
+            vm_req.status = RequestStatus.APPROVED
+            vm_req.error_message = None
+            failed_count += 1
+
+    deployment.status = DeploymentStatus.APPROVED
+    deployment.error_message = None
+    await db.commit()
+    await db.refresh(deployment)
+
+    # Fire-and-forget provisioning
+    asyncio.create_task(provision_deployment(deployment_id))
+
+    # Post Jira comment (fire-and-forget)
+    if deployment.jira_issue_key:
+        asyncio.create_task(
+            _jira_deployment_comment(
+                deployment.jira_issue_key,
+                f"Retrying provisioning for {failed_count} failed VM(s) via admin UI",
+            )
+        )
+
+    return deployment
+
+
+async def _jira_deployment_comment(issue_key: str, comment: str) -> None:
+    """Background task: add a comment to a deployment Jira issue."""
+    from app.database import async_session
+
+    try:
+        async with async_session() as db:
+            jira = await get_jira_service(db)
+            if not jira:
+                return
+            await jira.add_comment(issue_key, comment)
+            await jira.close()
+    except Exception as e:
+        logger.warning(f"Failed to add Jira comment to {issue_key}: {e}")
+
+
 async def _sync_deployment_jira(issue_key: str, action: str, comment: str) -> None:
     """Background task: transition deployment Jira issue and add a comment."""
     from app.database import async_session
