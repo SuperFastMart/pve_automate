@@ -140,20 +140,10 @@ class ProxmoxService:
     def get_templates(self) -> list[dict]:
         """Get all template VMs across all nodes."""
         templates = []
-        nodes = self.get_nodes()
-        logger.info("Template scan: found %d node(s): %s", len(nodes), [n["node"] for n in nodes])
-        for node_info in nodes:
+        for node_info in self.get_nodes():
             node = node_info["node"]
-            vms = self.proxmox.nodes(node).qemu.get()
-            logger.info("Node %s: %d VM(s)", node, len(vms))
-            for vm in vms:
-                tmpl_flag = vm.get("template")
-                if tmpl_flag:
-                    logger.info(
-                        "  VM %s (VMID %s): template=%r (type=%s)",
-                        vm.get("name", "?"), vm.get("vmid"), tmpl_flag, type(tmpl_flag).__name__,
-                    )
-                if tmpl_flag in (1, "1", True):
+            for vm in self.proxmox.nodes(node).qemu.get():
+                if vm.get("template") in (1, "1", True):
                     templates.append({
                         "vmid": vm["vmid"],
                         "name": vm.get("name", ""),
@@ -162,5 +152,4 @@ class ProxmoxService:
                         "disk_size": vm.get("maxdisk", 0),
                         "memory": vm.get("maxmem", 0),
                     })
-        logger.info("Template scan: returning %d template(s)", len(templates))
         return templates
