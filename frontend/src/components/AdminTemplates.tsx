@@ -26,6 +26,7 @@ interface AddFormState {
   display_name: string
   os_family: 'linux' | 'windows'
   cloud_init: boolean
+  environment_id: number | null
 }
 
 export default function AdminTemplates() {
@@ -50,6 +51,7 @@ export default function AdminTemplates() {
       display_name: tmpl.name,
       os_family: 'linux',
       cloud_init: true,
+      environment_id: tmpl.environment_id ?? selectedEnvId ?? null,
     })
   }
 
@@ -62,6 +64,7 @@ export default function AdminTemplates() {
       display_name: '',
       os_family: 'linux',
       cloud_init: true,
+      environment_id: selectedEnvId ?? null,
     })
   }
 
@@ -76,13 +79,24 @@ export default function AdminTemplates() {
         os_family: addForm.os_family,
         cloud_init: addForm.cloud_init,
         enabled: true,
-        environment_id: selectedEnvId ?? null,
+        environment_id: addForm.environment_id,
       },
       { onSuccess: () => setAddForm(null) }
     )
   }
 
-  const alreadyMappedVmids = new Set(mappings?.map((m) => m.vmid) ?? [])
+  // Build a set of "vmid:env_id" keys for already-mapped check
+  const alreadyMappedKeys = new Set(
+    mappings?.map((m) => `${m.vmid}:${m.environment_id ?? 'global'}`) ?? []
+  )
+
+  const isTemplateMapped = (tmpl: PVETemplate) => {
+    const envKey = tmpl.environment_id ?? 'global'
+    return alreadyMappedKeys.has(`${tmpl.vmid}:${envKey}`)
+  }
+
+  // Find environment name by id for display in the mappings table
+  const envNameMap = new Map(environments?.map((e) => [e.id, e.display_name]) ?? [])
 
   return (
     <div className="space-y-6">
@@ -104,7 +118,7 @@ export default function AdminTemplates() {
             }}
             className="rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:ring-indigo-500"
           >
-            <option value="">All / Global</option>
+            <option value="">All Environments</option>
             {environments.map((env) => (
               <option key={env.id} value={env.id}>
                 {env.display_name}{env.description ? ` — ${env.description}` : ''}
@@ -114,6 +128,11 @@ export default function AdminTemplates() {
           {selectedEnvId && (
             <span className="text-xs text-gray-400">
               Scanning and mappings scoped to this environment
+            </span>
+          )}
+          {!selectedEnvId && (
+            <span className="text-xs text-gray-400">
+              Scans all environments, shows all mappings
             </span>
           )}
         </div>
@@ -135,7 +154,7 @@ export default function AdminTemplates() {
               disabled={scan.isPending}
               className="px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:opacity-50"
             >
-              {scan.isPending ? 'Scanning...' : 'Scan Proxmox'}
+              {scan.isPending ? 'Scanning...' : selectedEnvId ? 'Scan Environment' : 'Scan All Environments'}
             </button>
           </div>
         </div>
@@ -148,7 +167,7 @@ export default function AdminTemplates() {
 
         {scan.data && scan.data.length === 0 && (
           <div className="p-6 text-center text-gray-500 text-sm">
-            No template VMs found in Proxmox. Create a VM and convert it to a template first.
+            No template VMs found. Create a VM and convert it to a template first.
           </div>
         )}
 
@@ -157,7 +176,7 @@ export default function AdminTemplates() {
             <div className="grid gap-3">
               {scan.data.map((tmpl) => (
                 <div
-                  key={`${tmpl.node}-${tmpl.vmid}`}
+                  key={`${tmpl.environment_id ?? 'g'}-${tmpl.node}-${tmpl.vmid}`}
                   className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
                 >
                   <div>
@@ -169,12 +188,17 @@ export default function AdminTemplates() {
                       <span className="text-xs px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded">
                         {tmpl.node}
                       </span>
+                      {tmpl.environment_name && (
+                        <span className="text-xs px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded">
+                          {tmpl.environment_name}
+                        </span>
+                      )}
                     </div>
                     <div className="text-xs text-gray-500 mt-0.5">
                       Disk: {formatBytes(tmpl.disk_size)} | RAM: {formatBytes(tmpl.memory)}
                     </div>
                   </div>
-                  {alreadyMappedVmids.has(tmpl.vmid) ? (
+                  {isTemplateMapped(tmpl) ? (
                     <span className="text-xs text-green-600 font-medium">Mapped</span>
                   ) : (
                     <button
@@ -196,6 +220,11 @@ export default function AdminTemplates() {
         <div className="bg-white rounded-lg shadow p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">
             {addForm.pve_name ? `Add Template: ${addForm.pve_name}` : 'Add Template Manually'}
+            {addForm.environment_id && envNameMap.get(addForm.environment_id) && (
+              <span className="ml-2 text-sm font-normal text-purple-600">
+                ({envNameMap.get(addForm.environment_id)})
+              </span>
+            )}
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -306,6 +335,9 @@ export default function AdminTemplates() {
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Display Name</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">VMID</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Node</th>
+                {!selectedEnvId && (
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Environment</th>
+                )}
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">OS Family</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cloud-Init</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Enabled</th>
@@ -319,6 +351,17 @@ export default function AdminTemplates() {
                   <td className="px-4 py-3 text-sm text-gray-900">{m.display_name}</td>
                   <td className="px-4 py-3 text-sm text-gray-500">{m.vmid}</td>
                   <td className="px-4 py-3 text-sm text-gray-500">{m.node}</td>
+                  {!selectedEnvId && (
+                    <td className="px-4 py-3">
+                      {m.environment_id ? (
+                        <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-purple-100 text-purple-700">
+                          {envNameMap.get(m.environment_id) ?? `Env #${m.environment_id}`}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-gray-400">Global</span>
+                      )}
+                    </td>
+                  )}
                   <td className="px-4 py-3">
                     <span
                       className={`text-xs px-2 py-0.5 rounded-full font-medium ${

@@ -86,13 +86,17 @@ async def scan_proxmox_templates(
     environment_id: int | None = None,
     db: AsyncSession = Depends(get_db),
 ):
-    """Query Proxmox for all template VMs across all nodes."""
+    """Query Proxmox for all template VMs across all nodes.
+
+    If environment_id is given, scan only that environment.
+    If omitted, scan ALL enabled environments.
+    """
     try:
+        from app.models.pve_environment import PVEEnvironment
         from app.services.proxmox import ProxmoxService
 
         if environment_id:
-            from app.models.pve_environment import PVEEnvironment
-
+            # Scan a single environment
             result = await db.execute(
                 select(PVEEnvironment).where(PVEEnvironment.id == environment_id)
             )
@@ -106,21 +110,48 @@ async def scan_proxmox_templates(
                 token_value=env.pve_token_value,
                 verify_ssl=env.pve_verify_ssl,
             )
+            templates = await asyncio.to_thread(pve.get_templates)
+            for t in templates:
+                t["environment_id"] = env.id
+                t["environment_name"] = env.display_name
+            return templates
         else:
-            settings = await get_effective_settings(db, group="proxmox")
-            host = settings.get("PVE_HOST", "")
-            if not host:
-                raise HTTPException(status_code=400, detail="PVE_HOST is not configured")
-            pve = ProxmoxService(
-                host=host,
-                user=settings["PVE_USER"],
-                token_name=settings["PVE_TOKEN_NAME"],
-                token_value=settings["PVE_TOKEN_VALUE"],
-                verify_ssl=settings.get("PVE_VERIFY_SSL", "false").lower() in ("true", "1", "yes"),
+            # Scan ALL enabled environments
+            result = await db.execute(
+                select(PVEEnvironment).where(PVEEnvironment.enabled == True)
             )
+            environments = result.scalars().all()
+            if not environments:
+                raise HTTPException(
+                    status_code=400,
+                    detail="No environments configured. Add an environment first.",
+                )
 
-        templates = await asyncio.to_thread(pve.get_templates)
-        return templates
+            all_templates = []
+            errors = []
+            for env in environments:
+                try:
+                    pve = ProxmoxService(
+                        host=env.pve_host,
+                        user=env.pve_user,
+                        token_name=env.pve_token_name,
+                        token_value=env.pve_token_value,
+                        verify_ssl=env.pve_verify_ssl,
+                    )
+                    templates = await asyncio.to_thread(pve.get_templates)
+                    for t in templates:
+                        t["environment_id"] = env.id
+                        t["environment_name"] = env.display_name
+                    all_templates.extend(templates)
+                except Exception as e:
+                    errors.append(f"{env.display_name}: {e}")
+
+            if errors and not all_templates:
+                raise HTTPException(
+                    status_code=500,
+                    detail="All scans failed: " + "; ".join(errors),
+                )
+            return all_templates
     except HTTPException:
         raise
     except Exception as e:

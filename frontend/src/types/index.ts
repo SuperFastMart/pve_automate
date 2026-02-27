@@ -136,6 +136,8 @@ export interface PVETemplate {
   status: string
   disk_size: number
   memory: number
+  environment_id?: number | null
+  environment_name?: string | null
 }
 
 export interface OSTemplateMapping {

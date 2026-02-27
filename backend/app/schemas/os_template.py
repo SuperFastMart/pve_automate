@@ -12,6 +12,8 @@ class PVETemplateResponse(BaseModel):
     status: str
     disk_size: int
     memory: int
+    environment_id: Optional[int] = None
+    environment_name: Optional[str] = None
 
 
 class OSTemplateMappingCreate(BaseModel):
