@@ -31,7 +31,7 @@ class VMRequest(Base):
     requestor_email = Column(String(255), nullable=False)
     workload_type = Column(String(50), nullable=False)
     os_template = Column(String(100), nullable=False)
-    tshirt_size = Column(String(5), nullable=False)
+    tshirt_size = Column(String(10), nullable=False)
 
     # Resolved specs (denormalized from config at submission time)
     cpu_cores = Column(Integer, nullable=False)

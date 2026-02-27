@@ -27,10 +27,18 @@ async def create_vm_request(
     db: AsyncSession = Depends(get_db),
 ):
     # Resolve t-shirt size to specs
-    sizes = load_tshirt_sizes()
-    size_config = sizes.get(payload.tshirt_size)
-    if not size_config:
-        raise HTTPException(status_code=400, detail=f"Invalid t-shirt size: {payload.tshirt_size}")
+    if payload.tshirt_size == "Custom":
+        cpu_cores = payload.cpu_cores
+        ram_mb = payload.ram_mb
+        disk_gb = payload.disk_gb
+    else:
+        sizes = load_tshirt_sizes()
+        size_config = sizes.get(payload.tshirt_size)
+        if not size_config:
+            raise HTTPException(status_code=400, detail=f"Invalid t-shirt size: {payload.tshirt_size}")
+        cpu_cores = size_config["cpu_cores"]
+        ram_mb = size_config["ram_mb"]
+        disk_gb = size_config["disk_gb"]
 
     vm_request = VMRequest(
         vm_name=payload.vm_name,
@@ -40,9 +48,9 @@ async def create_vm_request(
         workload_type=payload.workload_type,
         os_template=payload.os_template,
         tshirt_size=payload.tshirt_size,
-        cpu_cores=size_config["cpu_cores"],
-        ram_mb=size_config["ram_mb"],
-        disk_gb=size_config["disk_gb"],
+        cpu_cores=cpu_cores,
+        ram_mb=ram_mb,
+        disk_gb=disk_gb,
         subnet_id=payload.subnet_id,
         status=RequestStatus.PENDING_APPROVAL,
     )

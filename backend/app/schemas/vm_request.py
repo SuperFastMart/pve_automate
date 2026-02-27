@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, model_validator
 
 from app.models.vm_request import RequestStatus
 
@@ -19,8 +19,27 @@ class VMRequestCreate(BaseModel):
     requestor_email: EmailStr
     workload_type: str
     os_template: str
-    tshirt_size: str = Field(..., pattern=r"^(XS|S|M|L|XL)$")
+    tshirt_size: str = Field(..., pattern=r"^(XS|S|M|L|XL|Custom)$")
     subnet_id: Optional[int] = None
+
+    # Custom size fields (required only when tshirt_size == "Custom")
+    cpu_cores: Optional[int] = Field(None, ge=1, le=128)
+    ram_mb: Optional[int] = Field(None, ge=512, le=524288)
+    disk_gb: Optional[int] = Field(None, ge=8, le=4096)
+
+    @model_validator(mode="after")
+    def validate_custom_size(self):
+        if self.tshirt_size == "Custom":
+            missing = []
+            if self.cpu_cores is None:
+                missing.append("cpu_cores")
+            if self.ram_mb is None:
+                missing.append("ram_mb")
+            if self.disk_gb is None:
+                missing.append("disk_gb")
+            if missing:
+                raise ValueError(f"Custom size requires: {', '.join(missing)}")
+        return self
 
 
 class VMRequestResponse(BaseModel):

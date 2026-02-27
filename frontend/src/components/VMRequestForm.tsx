@@ -19,8 +19,19 @@ const schema = z.object({
   requestor_email: z.string().email('Valid email is required'),
   workload_type: z.string().min(1, 'Workload type is required'),
   os_template: z.string().min(1, 'OS template is required'),
-  tshirt_size: z.string().regex(/^(XS|S|M|L|XL)$/, 'Please select a size'),
-})
+  tshirt_size: z.string().regex(/^(XS|S|M|L|XL|Custom)$/, 'Please select a size'),
+  cpu_cores: z.coerce.number().int().min(1).max(128).optional(),
+  ram_mb: z.coerce.number().int().min(512).max(524288).optional(),
+  disk_gb: z.coerce.number().int().min(8).max(4096).optional(),
+}).refine(
+  (data) => {
+    if (data.tshirt_size === 'Custom') {
+      return data.cpu_cores != null && data.ram_mb != null && data.disk_gb != null
+    }
+    return true
+  },
+  { message: 'Custom size requires CPU, RAM, and Disk values', path: ['cpu_cores'] }
+)
 
 type FormData = z.infer<typeof schema>
 
@@ -85,9 +96,11 @@ export default function VMRequestForm() {
   const selectedSize = watch('tshirt_size')
 
   const onSubmit = async (data: FormData) => {
+    const { cpu_cores, ram_mb, disk_gb, ...rest } = data
     const payload = {
-      ...data,
+      ...rest,
       ...(selectedSubnet ? { subnet_id: Number(selectedSubnet) } : {}),
+      ...(data.tshirt_size === 'Custom' ? { cpu_cores, ram_mb, disk_gb } : {}),
     }
     const result = await createRequest.mutateAsync(payload)
     navigate(`/request/${result.id}`)
@@ -325,7 +338,7 @@ export default function VMRequestForm() {
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">VM Size</h2>
         <input type="hidden" {...register('tshirt_size')} />
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
           {sizes &&
             Object.entries(sizes).map(([key, size]) => (
               <TShirtSizeCard
@@ -336,9 +349,75 @@ export default function VMRequestForm() {
                 onSelect={(k) => setValue('tshirt_size', k, { shouldValidate: true })}
               />
             ))}
+          {/* Custom size card */}
+          <button
+            type="button"
+            onClick={() => setValue('tshirt_size', 'Custom', { shouldValidate: true })}
+            className={`relative flex flex-col items-center p-4 rounded-lg border-2 transition-all cursor-pointer ${
+              selectedSize === 'Custom'
+                ? 'border-indigo-500 bg-indigo-50 ring-2 ring-indigo-200'
+                : 'border-gray-200 bg-white hover:border-gray-300'
+            }`}
+          >
+            <svg className={`w-8 h-8 ${selectedSize === 'Custom' ? 'text-indigo-600' : 'text-gray-700'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            <span className="text-xs text-gray-500 mt-1">Specify your own</span>
+            <div className="mt-3 text-sm text-gray-600 text-center">
+              <div>Custom specs</div>
+            </div>
+            <p className="mt-2 text-xs text-gray-400">Define CPU, RAM & disk</p>
+          </button>
         </div>
         {errors.tshirt_size && (
           <p className="mt-2 text-sm text-red-600">{errors.tshirt_size.message}</p>
+        )}
+
+        {/* Custom size inputs */}
+        {selectedSize === 'Custom' && (
+          <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <h3 className="text-sm font-medium text-gray-700 mb-3">Custom Specifications</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">CPU Cores</label>
+                <input
+                  type="number"
+                  {...register('cpu_cores')}
+                  min={1}
+                  max={128}
+                  placeholder="e.g. 4"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">RAM (MB)</label>
+                <input
+                  type="number"
+                  {...register('ram_mb')}
+                  min={512}
+                  max={524288}
+                  step={512}
+                  placeholder="e.g. 8192"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Disk (GB)</label>
+                <input
+                  type="number"
+                  {...register('disk_gb')}
+                  min={8}
+                  max={4096}
+                  placeholder="e.g. 256"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                />
+              </div>
+            </div>
+            {errors.cpu_cores && (
+              <p className="mt-2 text-sm text-red-600">{errors.cpu_cores.message}</p>
+            )}
+          </div>
         )}
       </div>
 

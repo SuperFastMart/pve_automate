@@ -14,6 +14,9 @@ export interface CreateVMRequestPayload {
   os_template: string
   tshirt_size: string
   subnet_id?: number
+  cpu_cores?: number
+  ram_mb?: number
+  disk_gb?: number
 }
 
 export async function createVMRequest(payload: CreateVMRequestPayload): Promise<VMRequest> {
