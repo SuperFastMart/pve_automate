@@ -26,12 +26,18 @@ api.interceptors.request.use(async (config) => {
   return config
 })
 
-// Handle 401 responses by reloading (triggers MSAL re-auth)
+// Handle 401 responses by reloading once (triggers MSAL re-auth)
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      window.location.reload()
+      const lastReload = sessionStorage.getItem('auth_reload')
+      const now = Date.now()
+      // Only reload if we haven't reloaded in the last 10 seconds
+      if (!lastReload || now - Number(lastReload) > 10000) {
+        sessionStorage.setItem('auth_reload', String(now))
+        window.location.reload()
+      }
     }
     return Promise.reject(error)
   },

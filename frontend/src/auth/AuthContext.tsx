@@ -1,5 +1,5 @@
-import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react'
-import { useMsal, useIsAuthenticated, useMsalAuthentication, useAccount } from '@azure/msal-react'
+import { createContext, useContext, useEffect, useState, useCallback, useRef, type ReactNode } from 'react'
+import { useMsal, useIsAuthenticated, useMsalAuthentication } from '@azure/msal-react'
 import { InteractionType, InteractionStatus } from '@azure/msal-browser'
 import { loginRequest } from './msalConfig'
 import { setTokenAcquirer } from '../api/client'
@@ -29,9 +29,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const { instance, accounts, inProgress } = useMsal()
   const isAuthenticated = useIsAuthenticated()
   const [user, setUser] = useState<AuthUser | null>(null)
+  const [tokenReady, setTokenReady] = useState(false)
+  const tokenAcquirerSet = useRef(false)
 
   // Auto-trigger login redirect if not authenticated
-  const { error } = useMsalAuthentication(InteractionType.Redirect, loginRequest)
+  useMsalAuthentication(InteractionType.Redirect, loginRequest)
 
   const getAccessToken = useCallback(async (): Promise<string> => {
     if (accounts.length === 0) throw new Error('No account')
@@ -43,7 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [instance, accounts])
 
   useEffect(() => {
-    if (isAuthenticated && accounts.length > 0) {
+    if (isAuthenticated && accounts.length > 0 && !tokenAcquirerSet.current) {
       const account = accounts[0]
       const claims = account.idTokenClaims as Record<string, unknown> | undefined
       const roles = (claims?.roles as string[]) ?? []
@@ -57,6 +59,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // Wire up the token acquirer so Axios can inject Bearer tokens
       setTokenAcquirer(getAccessToken)
+      tokenAcquirerSet.current = true
+      setTokenReady(true)
     }
   }, [isAuthenticated, accounts, getAccessToken])
 
@@ -78,6 +82,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-gray-500">Redirecting to sign in...</div>
+      </div>
+    )
+  }
+
+  // Wait for token acquirer to be wired up before rendering children
+  if (!tokenReady) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-gray-500">Loading...</div>
       </div>
     )
   }
