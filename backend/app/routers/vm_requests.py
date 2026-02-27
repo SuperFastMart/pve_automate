@@ -58,7 +58,8 @@ async def create_vm_request(
                 allocation = await ipam.allocate_ip(
                     subnet_id=payload.subnet_id,
                     hostname=payload.vm_name,
-                    description=f"Peevinator request #{vm_request.id}",
+                    description=f"{payload.vm_name} — {payload.workload_type}",
+                    owner=payload.requestor_name,
                 )
                 vm_request.ip_address = allocation["ip"]
                 vm_request.phpipam_address_id = allocation["id"]

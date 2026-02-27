@@ -74,7 +74,8 @@ class PhpIpamService:
         ]
 
     async def allocate_ip(
-        self, subnet_id: int, hostname: str, description: str = ""
+        self, subnet_id: int, hostname: str, description: str = "",
+        owner: str = "",
     ) -> dict:
         """Allocate the first available IP in a subnet.
 
@@ -84,6 +85,8 @@ class PhpIpamService:
             "hostname": hostname,
             "description": description,
         }
+        if owner:
+            payload["owner"] = owner
         resp = await self._client.post(
             f"/addresses/first_free/{subnet_id}/",
             json=payload,
