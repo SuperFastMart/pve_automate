@@ -105,7 +105,13 @@ async def get_subnets(db: AsyncSession = Depends(get_db)):
         # Enrich and filter subnets
         result = []
         for s in subnets:
-            loc_id = int(s["location"]) if s.get("location") else None
+            raw_loc = s.get("location")
+            if isinstance(raw_loc, dict):
+                loc_id = int(raw_loc["id"]) if raw_loc.get("id") else None
+            elif raw_loc and str(raw_loc) not in ("0", ""):
+                loc_id = int(raw_loc)
+            else:
+                loc_id = None
             loc_name = loc_map.get(loc_id) if loc_id else None
 
             # Filter by allowed locations if configured
