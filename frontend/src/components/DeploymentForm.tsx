@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useCreateDeployment } from '../hooks/useDeployments'
 import { useOSTemplates, useWorkloadTypes, useTShirtSizes } from '../hooks/useVMRequests'
-import { getSubnets, getLocations, getEnvironments } from '../api/client'
+import { getSubnets, getEnvironments } from '../api/client'
 import type { DeploymentVMPayload } from '../api/client'
 
 interface VMEntry {

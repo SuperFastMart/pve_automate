@@ -20,18 +20,10 @@ const schema = z.object({
   workload_type: z.string().min(1, 'Workload type is required'),
   os_template: z.string().min(1, 'OS template is required'),
   tshirt_size: z.string().regex(/^(XS|S|M|L|XL|Custom)$/, 'Please select a size'),
-  cpu_cores: z.coerce.number().int().min(1).max(128).optional(),
-  ram_mb: z.coerce.number().int().min(512).max(524288).optional(),
-  disk_gb: z.coerce.number().int().min(8).max(4096).optional(),
-}).refine(
-  (data) => {
-    if (data.tshirt_size === 'Custom') {
-      return data.cpu_cores != null && data.ram_mb != null && data.disk_gb != null
-    }
-    return true
-  },
-  { message: 'Custom size requires CPU, RAM, and Disk values', path: ['cpu_cores'] }
-)
+  cpu_cores: z.string().optional(),
+  ram_mb: z.string().optional(),
+  disk_gb: z.string().optional(),
+})
 
 type FormData = z.infer<typeof schema>
 
@@ -101,6 +93,7 @@ export default function VMRequestForm() {
     handleSubmit,
     setValue,
     watch,
+    setError,
     formState: { errors },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -111,11 +104,23 @@ export default function VMRequestForm() {
 
   const onSubmit = async (data: FormData) => {
     const { cpu_cores, ram_mb, disk_gb, ...rest } = data
+
+    if (data.tshirt_size === 'Custom') {
+      if (!cpu_cores || !ram_mb || !disk_gb) {
+        setError('cpu_cores', { message: 'Custom size requires CPU, RAM, and Disk values' })
+        return
+      }
+    }
+
     const payload = {
       ...rest,
       ...(selectedEnvironment ? { environment_id: Number(selectedEnvironment) } : {}),
       ...(selectedSubnet ? { subnet_id: Number(selectedSubnet) } : {}),
-      ...(data.tshirt_size === 'Custom' ? { cpu_cores, ram_mb, disk_gb } : {}),
+      ...(data.tshirt_size === 'Custom' ? {
+        cpu_cores: Number(cpu_cores),
+        ram_mb: Number(ram_mb),
+        disk_gb: Number(disk_gb),
+      } : {}),
     }
     const result = await createRequest.mutateAsync(payload)
     navigate(`/request/${result.id}`)
