@@ -81,15 +81,39 @@ async def create_vm_request(
             issue_type = jira_settings.get("JIRA_ISSUE_TYPE", "Service Request")
 
             summary = f"VM Request: {vm_request.vm_name}"
-            description = (
-                f"Requestor: {vm_request.requestor_name} ({vm_request.requestor_email})\n"
-                f"VM Name: {vm_request.vm_name}\n"
-                f"Workload Type: {vm_request.workload_type}\n"
-                f"OS Template: {vm_request.os_template}\n"
+            desc_lines = [
+                f"Requestor: {vm_request.requestor_name} ({vm_request.requestor_email})",
+                f"VM Name: {vm_request.vm_name}",
+                f"Workload Type: {vm_request.workload_type}",
+                f"OS Template: {vm_request.os_template}",
                 f"Size: {vm_request.tshirt_size} "
-                f"({vm_request.cpu_cores} vCPU, {vm_request.ram_mb} MB RAM, {vm_request.disk_gb} GB disk)\n"
-                f"Description: {vm_request.description or 'N/A'}"
-            )
+                f"({vm_request.cpu_cores} vCPU, {vm_request.ram_mb} MB RAM, {vm_request.disk_gb} GB disk)",
+            ]
+            if vm_request.ip_address:
+                desc_lines.append(f"IP Address: {vm_request.ip_address}")
+            if vm_request.subnet_id:
+                # Try to fetch subnet details from phpIPAM for context
+                try:
+                    ipam = await get_phpipam_service(db)
+                    if ipam:
+                        all_subnets = await ipam.get_subnets()
+                        await ipam.close()
+                        subnet_info = next(
+                            (s for s in all_subnets if s["id"] == vm_request.subnet_id), None
+                        )
+                        if subnet_info:
+                            subnet_label = subnet_info.get("description", "")
+                            subnet_cidr = f"{subnet_info['subnet']}/{subnet_info['mask']}"
+                            if subnet_label:
+                                desc_lines.append(f"Subnet: {subnet_label} ({subnet_cidr})")
+                            else:
+                                desc_lines.append(f"Subnet: {subnet_cidr}")
+                        else:
+                            desc_lines.append(f"Subnet ID: {vm_request.subnet_id}")
+                except Exception:
+                    desc_lines.append(f"Subnet ID: {vm_request.subnet_id}")
+            desc_lines.append(f"Description: {vm_request.description or 'N/A'}")
+            description = "\n".join(desc_lines)
 
             result = await jira.create_issue(project_key, summary, description, issue_type)
             vm_request.jira_issue_key = result["key"]
