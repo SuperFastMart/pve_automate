@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth import AuthenticatedUser, get_current_user, require_admin
 from app.config import get_effective_settings, load_tshirt_sizes
 from app.database import get_db
 from app.models.vm_request import RequestStatus, VMRequest
@@ -24,6 +25,7 @@ router = APIRouter(prefix="/api/v1/requests", tags=["requests"])
 @router.post("", response_model=VMRequestResponse, status_code=201)
 async def create_vm_request(
     payload: VMRequestCreate,
+    user: AuthenticatedUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     # Resolve t-shirt size to specs
@@ -57,8 +59,8 @@ async def create_vm_request(
     vm_request = VMRequest(
         vm_name=payload.vm_name,
         description=payload.description,
-        requestor_name=payload.requestor_name,
-        requestor_email=payload.requestor_email,
+        requestor_name=user.name,
+        requestor_email=user.email,
         workload_type=payload.workload_type,
         os_template=payload.os_template,
         tshirt_size=payload.tshirt_size,
@@ -84,7 +86,7 @@ async def create_vm_request(
                     subnet_id=payload.subnet_id,
                     hostname=payload.vm_name,
                     description=f"{payload.vm_name} — {payload.workload_type}",
-                    owner=payload.requestor_name,
+                    owner=user.name,
                 )
                 vm_request.ip_address = allocation["ip"]
                 vm_request.phpipam_address_id = allocation["id"]
@@ -177,9 +179,14 @@ async def list_vm_requests(
     requestor_email: Optional[str] = None,
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=100),
+    user: AuthenticatedUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     query = select(VMRequest)
+
+    # Non-admin users can only see their own requests
+    if not user.is_admin:
+        query = query.where(VMRequest.requestor_email == user.email)
 
     if status:
         query = query.where(VMRequest.status == status)
@@ -202,6 +209,7 @@ async def list_vm_requests(
 @router.get("/{request_id}", response_model=VMRequestResponse)
 async def get_vm_request(
     request_id: int,
+    user: AuthenticatedUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(select(VMRequest).where(VMRequest.id == request_id))
@@ -216,6 +224,7 @@ async def get_vm_request(
 @router.post("/{request_id}/approve", response_model=VMRequestResponse)
 async def approve_vm_request(
     request_id: int,
+    user: AuthenticatedUser = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """Manual approval endpoint (admin use). Triggers provisioning and syncs to Jira."""
@@ -252,6 +261,7 @@ async def approve_vm_request(
 @router.post("/{request_id}/reject", response_model=VMRequestResponse)
 async def reject_vm_request(
     request_id: int,
+    user: AuthenticatedUser = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """Manual rejection endpoint (admin use). Syncs to Jira."""
@@ -291,6 +301,7 @@ async def reject_vm_request(
 @router.post("/{request_id}/retry", response_model=VMRequestResponse)
 async def retry_vm_request(
     request_id: int,
+    user: AuthenticatedUser = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """Retry provisioning for a failed VM request."""

@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, EmailStr, Field, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 from app.models.vm_request import RequestStatus
 
@@ -15,8 +15,6 @@ class VMRequestCreate(BaseModel):
         description="VM hostname (alphanumeric and hyphens, must start with letter/number)",
     )
     description: Optional[str] = None
-    requestor_name: str = Field(..., min_length=1, max_length=255)
-    requestor_email: EmailStr
     workload_type: str
     os_template: str
     tshirt_size: str = Field(..., pattern=r"^(XS|S|M|L|XL|Custom)$")

@@ -8,6 +8,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.auth import AuthenticatedUser, get_current_user, require_admin
 from app.config import load_tshirt_sizes
 from app.database import get_db
 from app.models.deployment import Deployment, DeploymentStatus
@@ -31,6 +32,7 @@ router = APIRouter(prefix="/api/v1/deployments", tags=["deployments"])
 @router.post("", response_model=DeploymentResponse, status_code=201)
 async def create_deployment(
     payload: DeploymentCreate,
+    user: AuthenticatedUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Create a multi-VM deployment."""
@@ -54,8 +56,8 @@ async def create_deployment(
     deployment = Deployment(
         name=payload.name,
         description=payload.description,
-        requestor_name=payload.requestor_name,
-        requestor_email=payload.requestor_email,
+        requestor_name=user.name,
+        requestor_email=user.email,
         workload_type=payload.workload_type,
         environment_id=payload.environment_id,
         environment_name=environment_name,
@@ -90,8 +92,8 @@ async def create_deployment(
         vm_request = VMRequest(
             vm_name=vm.vm_name,
             description=vm.description,
-            requestor_name=payload.requestor_name,
-            requestor_email=payload.requestor_email,
+            requestor_name=user.name,
+            requestor_email=user.email,
             workload_type=payload.workload_type,
             os_template=vm.os_template,
             tshirt_size=vm.tshirt_size,
@@ -121,7 +123,7 @@ async def create_deployment(
                         subnet_id=vm_def.subnet_id,
                         hostname=vm_req.vm_name,
                         description=f"{vm_req.vm_name} — {payload.workload_type} (deployment: {deployment.name})",
-                        owner=payload.requestor_name,
+                        owner=user.name,
                     )
                     vm_req.ip_address = allocation["ip"]
                     vm_req.phpipam_address_id = allocation["id"]
@@ -203,10 +205,15 @@ async def list_deployments(
     status: Optional[DeploymentStatus] = None,
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=100),
+    user: AuthenticatedUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """List deployments with pagination."""
     query = select(Deployment)
+
+    # Non-admin users can only see their own deployments
+    if not user.is_admin:
+        query = query.where(Deployment.requestor_email == user.email)
 
     if status:
         query = query.where(Deployment.status == status)
@@ -244,6 +251,7 @@ async def list_deployments(
 @router.get("/{deployment_id}", response_model=DeploymentResponse)
 async def get_deployment(
     deployment_id: int,
+    user: AuthenticatedUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Get deployment details including all VMs."""
@@ -261,6 +269,7 @@ async def get_deployment(
 @router.post("/{deployment_id}/approve", response_model=DeploymentResponse)
 async def approve_deployment(
     deployment_id: int,
+    user: AuthenticatedUser = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """Approve a deployment. Sets all VMs to approved and starts provisioning."""
@@ -304,6 +313,7 @@ async def approve_deployment(
 @router.post("/{deployment_id}/reject", response_model=DeploymentResponse)
 async def reject_deployment(
     deployment_id: int,
+    user: AuthenticatedUser = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """Reject a deployment. Sets all VMs to rejected."""
@@ -349,6 +359,7 @@ async def reject_deployment(
 @router.post("/{deployment_id}/retry", response_model=DeploymentResponse)
 async def retry_deployment(
     deployment_id: int,
+    user: AuthenticatedUser = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """Retry provisioning for a failed or partially completed deployment.

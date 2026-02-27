@@ -5,11 +5,41 @@ const api = axios.create({
   baseURL: '/api/v1',
 })
 
+// Token acquisition function — set by AuthProvider after MSAL initializes
+let tokenAcquirer: (() => Promise<string>) | null = null
+
+export function setTokenAcquirer(fn: () => Promise<string>) {
+  tokenAcquirer = fn
+}
+
+// Inject Bearer token into every request
+api.interceptors.request.use(async (config) => {
+  if (tokenAcquirer) {
+    try {
+      const token = await tokenAcquirer()
+      config.headers.Authorization = `Bearer ${token}`
+    } catch {
+      // Token acquisition failed — let the request go without auth
+      // The backend will return 401 and MSAL will handle re-auth
+    }
+  }
+  return config
+})
+
+// Handle 401 responses by reloading (triggers MSAL re-auth)
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      window.location.reload()
+    }
+    return Promise.reject(error)
+  },
+)
+
 export interface CreateVMRequestPayload {
   vm_name: string
   description?: string
-  requestor_name: string
-  requestor_email: string
   workload_type: string
   os_template: string
   tshirt_size: string
@@ -194,8 +224,6 @@ export interface DeploymentVMPayload {
 export interface CreateDeploymentPayload {
   name: string
   description?: string
-  requestor_name: string
-  requestor_email: string
   workload_type: string
   environment_id?: number
   vms: DeploymentVMPayload[]

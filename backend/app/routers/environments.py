@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth import AuthenticatedUser, get_current_user, require_admin
 from app.database import get_db
 from app.models.pve_environment import PVEEnvironment
 from app.schemas.pve_environment import (
@@ -21,7 +22,10 @@ router = APIRouter(prefix="/api/v1/environments", tags=["environments"])
 
 
 @router.get("", response_model=list[PVEEnvironmentListItem])
-async def list_environments(db: AsyncSession = Depends(get_db)):
+async def list_environments(
+    user: AuthenticatedUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     """List enabled environments for the request form dropdown."""
     result = await db.execute(
         select(PVEEnvironment)
@@ -32,7 +36,10 @@ async def list_environments(db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/all", response_model=list[PVEEnvironmentResponse])
-async def list_all_environments(db: AsyncSession = Depends(get_db)):
+async def list_all_environments(
+    user: AuthenticatedUser = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
     """List all environments including disabled (admin management)."""
     result = await db.execute(
         select(PVEEnvironment).order_by(PVEEnvironment.display_name)
@@ -43,6 +50,7 @@ async def list_all_environments(db: AsyncSession = Depends(get_db)):
 @router.post("", response_model=PVEEnvironmentResponse, status_code=201)
 async def create_environment(
     payload: PVEEnvironmentCreate,
+    user: AuthenticatedUser = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new PVE environment."""
@@ -67,6 +75,7 @@ async def create_environment(
 async def update_environment(
     env_id: int,
     payload: PVEEnvironmentUpdate,
+    user: AuthenticatedUser = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """Update an existing PVE environment."""
@@ -94,6 +103,7 @@ async def update_environment(
 @router.delete("/{env_id}", status_code=204)
 async def delete_environment(
     env_id: int,
+    user: AuthenticatedUser = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """Delete a PVE environment."""
@@ -122,6 +132,7 @@ async def delete_environment(
 @router.post("/{env_id}/test", response_model=ConnectionTestResult)
 async def test_environment_connection(
     env_id: int,
+    user: AuthenticatedUser = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """Test Proxmox connectivity for a specific environment."""

@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, Field
 
 from app.models.deployment import DeploymentStatus
 from app.schemas.vm_request import VMRequestResponse
@@ -30,8 +30,6 @@ class DeploymentCreate(BaseModel):
     """Create a multi-VM deployment."""
     name: str = Field(..., min_length=1, max_length=200)
     description: Optional[str] = None
-    requestor_name: str = Field(..., min_length=1, max_length=255)
-    requestor_email: EmailStr
     workload_type: str
     environment_id: Optional[int] = None
     vms: list[DeploymentVMItem] = Field(..., min_length=1, max_length=20)

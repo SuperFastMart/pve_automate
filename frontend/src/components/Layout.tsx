@@ -1,7 +1,9 @@
 import { Link, Outlet, useLocation } from 'react-router-dom'
+import { useAuth } from '../auth/AuthContext'
 
 export default function Layout() {
   const location = useLocation()
+  const { user, logout } = useAuth()
 
   const navLinks = [
     { to: '/', label: 'Dashboard' },
@@ -33,16 +35,31 @@ export default function Layout() {
                 ))}
               </div>
             </div>
-            <Link
-              to="/admin"
-              className={`text-xs font-medium px-2 py-1 rounded ${
-                location.pathname === '/admin'
-                  ? 'bg-gray-200 text-gray-900'
-                  : 'text-gray-400 hover:text-gray-600'
-              }`}
-            >
-              Admin
-            </Link>
+            <div className="flex items-center gap-4">
+              {user?.isAdmin && (
+                <Link
+                  to="/admin"
+                  className={`text-xs font-medium px-2 py-1 rounded ${
+                    location.pathname === '/admin'
+                      ? 'bg-gray-200 text-gray-900'
+                      : 'text-gray-400 hover:text-gray-600'
+                  }`}
+                >
+                  Admin
+                </Link>
+              )}
+              {user && (
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-gray-600">{user.name}</span>
+                  <button
+                    onClick={logout}
+                    className="text-xs text-gray-400 hover:text-gray-600"
+                  >
+                    Sign out
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </nav>

@@ -44,6 +44,10 @@ class Settings(BaseSettings):
     SMTP_USE_TLS: bool = True
     EMAIL_FROM: str = "peevinator@example.com"
 
+    # Entra ID (Azure AD)
+    ENTRA_TENANT_ID: str = ""
+    ENTRA_CLIENT_ID: str = ""
+
     # Application
     APP_BASE_URL: str = "http://localhost:8000"
     NODE_SELECTION_STRATEGY: str = "least_memory"
@@ -89,6 +93,9 @@ SETTINGS_REGISTRY: dict[str, dict] = {
     "SMTP_PASSWORD": {"group": "smtp", "display_name": "SMTP Password",       "is_secret": True},
     "SMTP_USE_TLS":  {"group": "smtp", "display_name": "Use TLS",             "is_secret": False},
     "EMAIL_FROM":    {"group": "smtp", "display_name": "Email From Address",  "is_secret": False},
+    # Entra ID
+    "ENTRA_TENANT_ID": {"group": "entra", "display_name": "Tenant ID",  "is_secret": False},
+    "ENTRA_CLIENT_ID": {"group": "entra", "display_name": "Client ID",  "is_secret": False},
 }
 
 GROUP_DISPLAY_NAMES = {
@@ -96,6 +103,7 @@ GROUP_DISPLAY_NAMES = {
     "jira": "Jira Cloud",
     "phpipam": "phpIPAM",
     "smtp": "SMTP / Email",
+    "entra": "Microsoft Entra ID",
 }
 
 

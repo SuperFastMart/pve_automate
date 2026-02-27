@@ -1,5 +1,6 @@
 import { Routes, Route } from 'react-router-dom'
 import Layout from './components/Layout'
+import RequireAdmin from './components/RequireAdmin'
 import Dashboard from './pages/Dashboard'
 import NewRequest from './pages/NewRequest'
 import RequestDetail from './pages/RequestDetail'
@@ -14,7 +15,7 @@ export default function App() {
         <Route path="/new" element={<NewRequest />} />
         <Route path="/request/:id" element={<RequestDetail />} />
         <Route path="/deployment/:id" element={<DeploymentDetail />} />
-        <Route path="/admin" element={<Admin />} />
+        <Route path="/admin" element={<RequireAdmin><Admin /></RequireAdmin>} />
       </Route>
     </Routes>
   )

@@ -5,6 +5,7 @@ import { useCreateDeployment } from '../hooks/useDeployments'
 import { useOSTemplates, useWorkloadTypes, useTShirtSizes } from '../hooks/useVMRequests'
 import { getSubnets, getEnvironments } from '../api/client'
 import type { DeploymentVMPayload } from '../api/client'
+import { useAuth } from '../auth/AuthContext'
 
 interface VMEntry {
   vm_name: string
@@ -30,6 +31,7 @@ const emptyVM: VMEntry = {
 
 export default function DeploymentForm() {
   const navigate = useNavigate()
+  const { user } = useAuth()
   const createDeployment = useCreateDeployment()
   const { data: workloadTypes, isLoading: workloadsLoading } = useWorkloadTypes()
   const { data: sizes, isLoading: sizesLoading } = useTShirtSizes()
@@ -39,8 +41,6 @@ export default function DeploymentForm() {
   // Top-level fields
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
-  const [requestorName, setRequestorName] = useState('')
-  const [requestorEmail, setRequestorEmail] = useState('')
   const [workloadType, setWorkloadType] = useState('')
   const [selectedEnvironment, setSelectedEnvironment] = useState('')
   const environmentId = selectedEnvironment ? Number(selectedEnvironment) : undefined
@@ -85,8 +85,6 @@ export default function DeploymentForm() {
   const validate = (): string[] => {
     const errs: string[] = []
     if (!name.trim()) errs.push('Deployment name is required')
-    if (!requestorName.trim()) errs.push('Your name is required')
-    if (!requestorEmail.trim()) errs.push('Your email is required')
     if (!workloadType) errs.push('Workload type is required')
 
     vms.forEach((vm, i) => {
@@ -131,8 +129,6 @@ export default function DeploymentForm() {
     const result = await createDeployment.mutateAsync({
       name,
       ...(description ? { description } : {}),
-      requestor_name: requestorName,
-      requestor_email: requestorEmail,
       workload_type: workloadType,
       ...(selectedEnvironment ? { environment_id: Number(selectedEnvironment) } : {}),
       vms: vmPayloads,
@@ -149,29 +145,12 @@ export default function DeploymentForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
-      {/* Requestor Info */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Your Details</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
-            <input
-              value={requestorName}
-              onChange={(e) => setRequestorName(e.target.value)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
-              placeholder="John Smith"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-            <input
-              type="email"
-              value={requestorEmail}
-              onChange={(e) => setRequestorEmail(e.target.value)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
-              placeholder="john.smith@company.com"
-            />
-          </div>
+      {/* Submitting as */}
+      <div className="bg-blue-50 rounded-lg p-4 flex items-center gap-3">
+        <div className="text-sm">
+          <span className="text-gray-500">Submitting as:</span>{' '}
+          <span className="font-medium text-gray-900">{user?.name}</span>{' '}
+          <span className="text-gray-500">({user?.email})</span>
         </div>
       </div>
 

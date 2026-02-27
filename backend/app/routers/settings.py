@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth import require_admin
 from app.config import (
     GROUP_DISPLAY_NAMES,
     SETTINGS_REGISTRY,
@@ -27,7 +28,11 @@ from app.schemas.setting import (
     SettingUpdate,
 )
 
-router = APIRouter(prefix="/api/v1/settings", tags=["settings"])
+router = APIRouter(
+    prefix="/api/v1/settings",
+    tags=["settings"],
+    dependencies=[Depends(require_admin)],
+)
 
 
 def _mask_value(value: str) -> str:

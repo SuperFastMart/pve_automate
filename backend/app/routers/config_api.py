@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth import AuthenticatedUser, get_current_user
 from app.config import get_effective_settings, load_templates, load_tshirt_sizes, load_workload_types
 from app.database import get_db
 from app.models.os_template import OSTemplateMapping
@@ -14,14 +15,30 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/config", tags=["config"])
 
 
+@router.get("/me")
+async def get_current_user_info(
+    user: AuthenticatedUser = Depends(get_current_user),
+):
+    """Return the authenticated user's profile from their token."""
+    return {
+        "name": user.name,
+        "email": user.email,
+        "roles": user.roles,
+        "is_admin": user.is_admin,
+    }
+
+
 @router.get("/tshirt-sizes")
-async def get_tshirt_sizes():
+async def get_tshirt_sizes(
+    user: AuthenticatedUser = Depends(get_current_user),
+):
     return load_tshirt_sizes()
 
 
 @router.get("/os-templates")
 async def get_os_templates(
     environment_id: int | None = None,
+    user: AuthenticatedUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Return OS templates, optionally filtered by environment.
@@ -76,12 +93,17 @@ async def get_os_templates(
 
 
 @router.get("/workload-types")
-async def get_workload_types():
+async def get_workload_types(
+    user: AuthenticatedUser = Depends(get_current_user),
+):
     return load_workload_types()
 
 
 @router.get("/locations")
-async def get_locations(db: AsyncSession = Depends(get_db)):
+async def get_locations(
+    user: AuthenticatedUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     """Fetch available locations from phpIPAM, filtered by allowed IDs if configured."""
     try:
         from app.services.phpipam import get_phpipam_service
@@ -106,7 +128,10 @@ async def get_locations(db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/subnets")
-async def get_subnets(db: AsyncSession = Depends(get_db)):
+async def get_subnets(
+    user: AuthenticatedUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     """Fetch available subnets from phpIPAM, enriched with location names and filtered."""
     try:
         from app.services.phpipam import get_phpipam_service

@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useCreateVMRequest, useTShirtSizes, useOSTemplates, useWorkloadTypes } from '../hooks/useVMRequests'
 import { getSubnets, getLocations, getEnvironments } from '../api/client'
+import { useAuth } from '../auth/AuthContext'
 import TShirtSizeCard from './TShirtSizeCard'
 
 const schema = z.object({
@@ -15,8 +16,6 @@ const schema = z.object({
     .max(63, 'VM name must be 63 characters or less')
     .regex(/^[a-zA-Z0-9][a-zA-Z0-9-]*$/, 'Must start with a letter/number, only letters, numbers and hyphens allowed'),
   description: z.string().optional(),
-  requestor_name: z.string().min(1, 'Your name is required'),
-  requestor_email: z.string().email('Valid email is required'),
   workload_type: z.string().min(1, 'Workload type is required'),
   os_template: z.string().min(1, 'OS template is required'),
   tshirt_size: z.string().regex(/^(XS|S|M|L|XL|Custom)$/, 'Please select a size'),
@@ -29,6 +28,7 @@ type FormData = z.infer<typeof schema>
 
 export default function VMRequestForm() {
   const navigate = useNavigate()
+  const { user } = useAuth()
   const createRequest = useCreateVMRequest()
   const { data: sizes, isLoading: sizesLoading } = useTShirtSizes()
   const { data: workloadTypes, isLoading: workloadsLoading } = useWorkloadTypes()
@@ -133,33 +133,12 @@ export default function VMRequestForm() {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
-      {/* Requestor Info */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Your Details</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
-            <input
-              {...register('requestor_name')}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
-              placeholder="John Smith"
-            />
-            {errors.requestor_name && (
-              <p className="mt-1 text-sm text-red-600">{errors.requestor_name.message}</p>
-            )}
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-            <input
-              {...register('requestor_email')}
-              type="email"
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
-              placeholder="john.smith@company.com"
-            />
-            {errors.requestor_email && (
-              <p className="mt-1 text-sm text-red-600">{errors.requestor_email.message}</p>
-            )}
-          </div>
+      {/* Submitting as */}
+      <div className="bg-blue-50 rounded-lg p-4 flex items-center gap-3">
+        <div className="text-sm">
+          <span className="text-gray-500">Submitting as:</span>{' '}
+          <span className="font-medium text-gray-900">{user?.name}</span>{' '}
+          <span className="text-gray-500">({user?.email})</span>
         </div>
       </div>
 
