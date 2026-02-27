@@ -171,6 +171,10 @@ async def provision_vm(request_id: int) -> None:
                 f"IP: {vm_request.ip_address or 'N/A'}"
             )
 
+            # Send "VM ready" email (fire-and-forget)
+            from app.services.email import send_vm_ready
+            asyncio.create_task(send_vm_ready(request_id))
+
         except Exception as e:
             logger.exception(f"Provisioning failed for request {request_id}: {e}")
             async with async_session() as error_db:
@@ -188,6 +192,10 @@ async def provision_vm(request_id: int) -> None:
                         error_db, vm_request.jira_issue_key,
                         f"Provisioning failed: {str(e)[:500]}"
                     )
+
+                    # Send "provisioning failed" email (fire-and-forget)
+                    from app.services.email import send_provisioning_failed
+                    asyncio.create_task(send_provisioning_failed(request_id))
 
 
 async def _jira_comment(db, issue_key: str | None, comment: str) -> None:

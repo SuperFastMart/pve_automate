@@ -91,6 +91,15 @@ async def jira_webhook(
         await db.commit()
         logger.info(f"Auto-rejected request {vm_request.id} via Jira webhook ({issue_key})")
 
+        # Release phpIPAM IP allocation (fire-and-forget)
+        if vm_request.phpipam_address_id:
+            from app.routers.vm_requests import _release_phpipam_ip
+            asyncio.create_task(_release_phpipam_ip(vm_request.phpipam_address_id))
+
+        # Send rejection email (fire-and-forget)
+        from app.services.email import send_request_rejected
+        asyncio.create_task(send_request_rejected(vm_request.id))
+
         return {"status": "rejected", "request_id": vm_request.id}
 
     return {"status": "ignored", "reason": f"unhandled status: {new_status}"}

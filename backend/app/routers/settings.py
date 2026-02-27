@@ -247,6 +247,32 @@ async def test_phpipam_connection(db: AsyncSession = Depends(get_db)):
         return ConnectionTestResult(success=False, message=str(e))
 
 
+@router.post("/smtp/test", response_model=ConnectionTestResult)
+async def test_smtp_connection(db: AsyncSession = Depends(get_db)):
+    """Test SMTP connectivity by sending a test email to the configured from address."""
+    try:
+        from app.services.email import get_email_service, render_template
+
+        svc = await get_email_service(db)
+        if not svc:
+            return ConnectionTestResult(
+                success=False,
+                message="SMTP is not configured (missing SMTP_HOST)",
+            )
+
+        await svc.send(
+            to=svc.from_addr,
+            subject="Peevinator SMTP Test",
+            html_body="<p>This is a test email from Peevinator. SMTP is working correctly.</p>",
+        )
+        return ConnectionTestResult(
+            success=True,
+            message=f"Test email sent to {svc.from_addr}",
+        )
+    except Exception as e:
+        return ConnectionTestResult(success=False, message=str(e))
+
+
 # ── Settings CRUD (wildcard routes last) ─────────────────────────────
 
 

@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}VM Request Received{% endblock %}
+{% block content %}
+<h2 style="margin:0 0 16px 0; color:#1e293b; font-size:18px;">VM Request Received</h2>
+<p style="margin:0 0 16px 0; color:#334155; font-size:14px; line-height:1.6;">
+  Hi {{ vm.requestor_name }},
+</p>
+<p style="margin:0 0 24px 0; color:#334155; font-size:14px; line-height:1.6;">
+  Your VM request has been submitted and is awaiting approval.
+</p>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f8fafc; border-radius:6px; border:1px solid #e2e8f0; margin-bottom:24px;">
+  <tr>
+    <td style="padding:16px;">
+      <table role="presentation" width="100%" cellpadding="4" cellspacing="0">
+        <tr>
+          <td style="color:#64748b; font-size:13px; width:140px; vertical-align:top;">VM Name</td>
+          <td style="color:#1e293b; font-size:13px; font-weight:600;">{{ vm.vm_name }}</td>
+        </tr>
+        <tr>
+          <td style="color:#64748b; font-size:13px; vertical-align:top;">Workload Type</td>
+          <td style="color:#1e293b; font-size:13px;">{{ vm.workload_type }}</td>
+        </tr>
+        <tr>
+          <td style="color:#64748b; font-size:13px; vertical-align:top;">OS Template</td>
+          <td style="color:#1e293b; font-size:13px;">{{ vm.os_template }}</td>
+        </tr>
+        <tr>
+          <td style="color:#64748b; font-size:13px; vertical-align:top;">Size</td>
+          <td style="color:#1e293b; font-size:13px;">{{ vm.tshirt_size }} ({{ vm.cpu_cores }} vCPU, {{ vm.ram_mb }} MB RAM, {{ vm.disk_gb }} GB disk)</td>
+        </tr>
+        {% if vm.ip_address %}
+        <tr>
+          <td style="color:#64748b; font-size:13px; vertical-align:top;">IP Address</td>
+          <td style="color:#1e293b; font-size:13px;">{{ vm.ip_address }}</td>
+        </tr>
+        {% endif %}
+        {% if vm.description %}
+        <tr>
+          <td style="color:#64748b; font-size:13px; vertical-align:top;">Description</td>
+          <td style="color:#1e293b; font-size:13px;">{{ vm.description }}</td>
+        </tr>
+        {% endif %}
+      </table>
+    </td>
+  </tr>
+</table>
+
+{% if vm.jira_issue_url %}
+<p style="margin:0 0 8px 0; color:#334155; font-size:14px;">
+  <a href="{{ vm.jira_issue_url }}" style="color:#2563eb; text-decoration:none;">View Jira ticket {{ vm.jira_issue_key }}</a>
+</p>
+{% endif %}
+
+<p style="margin:16px 0 0 0; color:#64748b; font-size:13px;">
+  You will receive another email once your request has been reviewed.
+</p>
+{% endblock %}

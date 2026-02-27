@@ -13,6 +13,7 @@ from app.models.vm_request import RequestStatus, VMRequest
 from app.schemas.vm_request import VMRequestCreate, VMRequestList, VMRequestResponse
 from app.services.jira import get_jira_service, get_jira_settings
 from app.services.phpipam import get_phpipam_service
+from app.services.email import send_request_received, send_request_rejected
 from app.services.provisioning import provision_vm
 
 logger = logging.getLogger(__name__)
@@ -138,7 +139,8 @@ async def create_vm_request(
     except Exception as e:
         logger.warning(f"Failed to create Jira issue for request {vm_request.id}: {e}")
 
-    # TODO: Phase 7 - Send "request received" email here
+    # Send "request received" email (fire-and-forget)
+    asyncio.create_task(send_request_received(vm_request.id))
 
     return vm_request
 
@@ -243,6 +245,9 @@ async def reject_vm_request(
         asyncio.create_task(
             _sync_jira_transition(vm_request.jira_issue_key, "reject", "Rejected via admin UI")
         )
+
+    # Send rejection email (fire-and-forget)
+    asyncio.create_task(send_request_rejected(vm_request.id))
 
     return vm_request
 

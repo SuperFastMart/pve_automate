@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}VM Provisioning Failed{% endblock %}
+{% block content %}
+<h2 style="margin:0 0 16px 0; color:#1e293b; font-size:18px;">VM Provisioning Failed</h2>
+<p style="margin:0 0 16px 0; color:#334155; font-size:14px; line-height:1.6;">
+  Hi {{ vm.requestor_name }},
+</p>
+<p style="margin:0 0 24px 0; color:#334155; font-size:14px; line-height:1.6;">
+  There was a problem provisioning your VM. The infrastructure team has been notified and will investigate.
+</p>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#fffbeb; border-radius:6px; border:1px solid #fde68a; margin-bottom:24px;">
+  <tr>
+    <td style="padding:16px;">
+      <table role="presentation" width="100%" cellpadding="4" cellspacing="0">
+        <tr>
+          <td style="color:#64748b; font-size:13px; width:140px; vertical-align:top;">VM Name</td>
+          <td style="color:#1e293b; font-size:13px; font-weight:600;">{{ vm.vm_name }}</td>
+        </tr>
+        <tr>
+          <td style="color:#64748b; font-size:13px; vertical-align:top;">OS Template</td>
+          <td style="color:#1e293b; font-size:13px;">{{ vm.os_template }}</td>
+        </tr>
+        <tr>
+          <td style="color:#64748b; font-size:13px; vertical-align:top;">Size</td>
+          <td style="color:#1e293b; font-size:13px;">{{ vm.tshirt_size }} ({{ vm.cpu_cores }} vCPU, {{ vm.ram_mb }} MB RAM, {{ vm.disk_gb }} GB disk)</td>
+        </tr>
+        {% if vm.error_message %}
+        <tr>
+          <td style="color:#64748b; font-size:13px; vertical-align:top;">Error</td>
+          <td style="color:#dc2626; font-size:13px;">{{ vm.error_message[:200] }}</td>
+        </tr>
+        {% endif %}
+      </table>
+    </td>
+  </tr>
+</table>
+
+{% if vm.jira_issue_url %}
+<p style="margin:0 0 8px 0; color:#334155; font-size:14px;">
+  <a href="{{ vm.jira_issue_url }}" style="color:#2563eb; text-decoration:none;">View Jira ticket {{ vm.jira_issue_key }}</a>
+</p>
+{% endif %}
+
+<p style="margin:16px 0 0 0; color:#64748b; font-size:13px;">
+  You do not need to resubmit your request. The team will follow up once the issue is resolved.
+</p>
+{% endblock %}
