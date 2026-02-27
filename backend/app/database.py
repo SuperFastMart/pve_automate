@@ -25,7 +25,7 @@ async def get_db():
         yield session
 
 
-async def _upgrade_os_template_table(conn):
+def _upgrade_os_template_table(conn):
     """Rebuild os_template_mappings to add environment_id and composite unique constraint."""
     result = conn.execute(text("PRAGMA table_info(os_template_mappings)"))
     columns = [row[1] for row in result]
