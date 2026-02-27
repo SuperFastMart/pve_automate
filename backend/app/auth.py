@@ -107,13 +107,21 @@ async def get_current_user(request: Request) -> AuthenticatedUser:
         unverified_claims = jwt.get_unverified_claims(token)
         logger.info(f"Token aud={unverified_claims.get('aud')}, iss={unverified_claims.get('iss')}")
 
-        issuer = f"https://login.microsoftonline.com/{tenant_id}/v2.0"
+        # Accept both v1 and v2 issuer formats
+        valid_issuers = [
+            f"https://login.microsoftonline.com/{tenant_id}/v2.0",
+            f"https://sts.windows.net/{tenant_id}/",
+        ]
+        token_issuer = unverified_claims.get("iss", "")
+        if token_issuer not in valid_issuers:
+            raise JWTError(f"Invalid issuer: {token_issuer}")
+
         payload = jwt.decode(
             token,
             rsa_key,
             algorithms=["RS256"],
             audience=client_id,
-            issuer=issuer,
+            options={"verify_iss": False},  # We already verified issuer above
         )
 
         return AuthenticatedUser(
