@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import {
   useScanPVETemplates,
   useTemplateMappings,
@@ -6,6 +7,7 @@ import {
   useUpdateTemplateMapping,
   useDeleteTemplateMapping,
 } from '../hooks/useTemplates'
+import { getAllEnvironments } from '../api/client'
 import type { PVETemplate } from '../types'
 
 function formatBytes(bytes: number): string {
@@ -27,8 +29,11 @@ interface AddFormState {
 }
 
 export default function AdminTemplates() {
+  const { data: environments } = useQuery({ queryKey: ['environments-all'], queryFn: getAllEnvironments })
+  const [selectedEnvId, setSelectedEnvId] = useState<number | undefined>(undefined)
+
   const scan = useScanPVETemplates()
-  const { data: mappings, isLoading } = useTemplateMappings()
+  const { data: mappings, isLoading } = useTemplateMappings(selectedEnvId)
   const createMapping = useCreateTemplateMapping()
   const updateMapping = useUpdateTemplateMapping()
   const deleteMapping = useDeleteTemplateMapping()
@@ -71,6 +76,7 @@ export default function AdminTemplates() {
         os_family: addForm.os_family,
         cloud_init: addForm.cloud_init,
         enabled: true,
+        environment_id: selectedEnvId ?? null,
       },
       { onSuccess: () => setAddForm(null) }
     )
@@ -86,6 +92,33 @@ export default function AdminTemplates() {
         </p>
       </div>
 
+      {/* Environment Selector */}
+      {environments && environments.length > 0 && (
+        <div className="flex items-center gap-3">
+          <label className="text-sm font-medium text-gray-700">Environment:</label>
+          <select
+            value={selectedEnvId ?? ''}
+            onChange={(e) => {
+              setSelectedEnvId(e.target.value ? Number(e.target.value) : undefined)
+              scan.reset()
+            }}
+            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+          >
+            <option value="">All / Global</option>
+            {environments.map((env) => (
+              <option key={env.id} value={env.id}>
+                {env.display_name}{env.description ? ` — ${env.description}` : ''}
+              </option>
+            ))}
+          </select>
+          {selectedEnvId && (
+            <span className="text-xs text-gray-400">
+              Scanning and mappings scoped to this environment
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Scan Section */}
       <div className="bg-white rounded-lg shadow">
         <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
@@ -98,7 +131,7 @@ export default function AdminTemplates() {
               Add Manual
             </button>
             <button
-              onClick={() => scan.mutate()}
+              onClick={() => scan.mutate(selectedEnvId)}
               disabled={scan.isPending}
               className="px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:opacity-50"
             >

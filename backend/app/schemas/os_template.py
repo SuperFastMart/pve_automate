@@ -22,6 +22,7 @@ class OSTemplateMappingCreate(BaseModel):
     os_family: str = Field(..., pattern=r"^(linux|windows)$")
     cloud_init: bool = True
     enabled: bool = True
+    environment_id: Optional[int] = None
 
 
 class OSTemplateMappingUpdate(BaseModel):
@@ -32,6 +33,7 @@ class OSTemplateMappingUpdate(BaseModel):
     os_family: Optional[str] = Field(None, pattern=r"^(linux|windows)$")
     cloud_init: Optional[bool] = None
     enabled: Optional[bool] = None
+    environment_id: Optional[int] = None
 
 
 class OSTemplateMappingResponse(BaseModel):
@@ -43,6 +45,7 @@ class OSTemplateMappingResponse(BaseModel):
     os_family: str
     cloud_init: bool
     enabled: bool
+    environment_id: Optional[int] = None
     created_at: datetime
     updated_at: datetime
 

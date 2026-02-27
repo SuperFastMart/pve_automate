@@ -31,12 +31,13 @@ export default function VMRequestForm() {
   const navigate = useNavigate()
   const createRequest = useCreateVMRequest()
   const { data: sizes, isLoading: sizesLoading } = useTShirtSizes()
-  const { data: templates, isLoading: templatesLoading } = useOSTemplates()
   const { data: workloadTypes, isLoading: workloadsLoading } = useWorkloadTypes()
   const { data: subnets } = useQuery({ queryKey: ['subnets'], queryFn: getSubnets })
   const { data: locations } = useQuery({ queryKey: ['locations'], queryFn: getLocations })
   const { data: environments } = useQuery({ queryKey: ['environments'], queryFn: getEnvironments })
   const [selectedEnvironment, setSelectedEnvironment] = useState<string>('')
+  const environmentId = selectedEnvironment ? Number(selectedEnvironment) : undefined
+  const { data: templates, isLoading: templatesLoading } = useOSTemplates(environmentId)
   const [selectedLocation, setSelectedLocation] = useState<string>('')
   const [selectedSubnet, setSelectedSubnet] = useState<string>('')
   const [subnetSearch, setSubnetSearch] = useState('')
@@ -170,7 +171,10 @@ export default function VMRequestForm() {
             <label className="block text-sm font-medium text-gray-700 mb-1">Proxmox Environment</label>
             <select
               value={selectedEnvironment}
-              onChange={(e) => setSelectedEnvironment(e.target.value)}
+              onChange={(e) => {
+                setSelectedEnvironment(e.target.value)
+                setValue('os_template', '')
+              }}
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
             >
               {environments.length > 1 && <option value="">Select environment...</option>}

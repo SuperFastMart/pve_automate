@@ -46,6 +46,37 @@ async def _get_proxmox_service(db, environment_id: int | None = None) -> Proxmox
     )
 
 
+async def _resolve_template(db, template_key: str, environment_id: int | None = None):
+    """Resolve a template mapping, preferring environment-specific over global."""
+    if environment_id:
+        # Try environment-specific first
+        result = await db.execute(
+            select(OSTemplateMapping)
+            .where(OSTemplateMapping.key == template_key)
+            .where(OSTemplateMapping.environment_id == environment_id)
+        )
+        mapping = result.scalar_one_or_none()
+        if mapping:
+            return mapping.vmid, mapping.node, mapping.cloud_init
+
+    # Fall back to global (environment_id IS NULL)
+    result = await db.execute(
+        select(OSTemplateMapping)
+        .where(OSTemplateMapping.key == template_key)
+        .where(OSTemplateMapping.environment_id.is_(None))
+    )
+    mapping = result.scalar_one_or_none()
+    if mapping:
+        return mapping.vmid, mapping.node, mapping.cloud_init
+
+    # Final fallback to YAML
+    templates = load_templates()
+    template_config = templates.get(template_key)
+    if not template_config:
+        raise ValueError(f"Unknown OS template: {template_key}")
+    return template_config["vmid"], template_config["node"], template_config.get("cloud_init", False)
+
+
 async def provision_vm(request_id: int) -> None:
     """Full provisioning pipeline. Runs as a background task.
 
@@ -84,24 +115,10 @@ async def provision_vm(request_id: int) -> None:
             # Initialize Proxmox service (environment-aware)
             pve = await _get_proxmox_service(db, vm_request.environment_id)
 
-            # Resolve template config from DB, fallback to YAML
-            tmpl_result = await db.execute(
-                select(OSTemplateMapping).where(OSTemplateMapping.key == vm_request.os_template)
+            # Resolve template (environment-specific > global > YAML)
+            template_vmid, source_node, is_cloud_init = await _resolve_template(
+                db, vm_request.os_template, vm_request.environment_id
             )
-            template_mapping = tmpl_result.scalar_one_or_none()
-
-            if template_mapping:
-                template_vmid = template_mapping.vmid
-                source_node = template_mapping.node
-                is_cloud_init = template_mapping.cloud_init
-            else:
-                templates = load_templates()
-                template_config = templates.get(vm_request.os_template)
-                if not template_config:
-                    raise ValueError(f"Unknown OS template: {vm_request.os_template}")
-                template_vmid = template_config["vmid"]
-                source_node = template_config["node"]
-                is_cloud_init = template_config.get("cloud_init", False)
 
             # Get node selection strategy
             all_settings = await get_effective_settings(db)
@@ -218,24 +235,10 @@ async def provision_vm(request_id: int) -> None:
 
 async def _provision_single_vm(db, vm_request: VMRequest, pve: ProxmoxService) -> None:
     """Provision a single VM. Used by both provision_vm and provision_deployment."""
-    # Resolve template config from DB, fallback to YAML
-    tmpl_result = await db.execute(
-        select(OSTemplateMapping).where(OSTemplateMapping.key == vm_request.os_template)
+    # Resolve template (environment-specific > global > YAML)
+    template_vmid, source_node, is_cloud_init = await _resolve_template(
+        db, vm_request.os_template, vm_request.environment_id
     )
-    template_mapping = tmpl_result.scalar_one_or_none()
-
-    if template_mapping:
-        template_vmid = template_mapping.vmid
-        source_node = template_mapping.node
-        is_cloud_init = template_mapping.cloud_init
-    else:
-        templates = load_templates()
-        template_config = templates.get(vm_request.os_template)
-        if not template_config:
-            raise ValueError(f"Unknown OS template: {vm_request.os_template}")
-        template_vmid = template_config["vmid"]
-        source_node = template_config["node"]
-        is_cloud_init = template_config.get("cloud_init", False)
 
     # Get node selection strategy
     all_settings = await get_effective_settings(db)

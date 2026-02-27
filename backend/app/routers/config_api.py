@@ -20,26 +20,56 @@ async def get_tshirt_sizes():
 
 
 @router.get("/os-templates")
-async def get_os_templates(db: AsyncSession = Depends(get_db)):
-    """Return OS templates. Reads from DB if mappings exist, else falls back to YAML."""
-    result = await db.execute(
+async def get_os_templates(
+    environment_id: int | None = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """Return OS templates, optionally filtered by environment.
+
+    When environment_id is provided, returns templates for that environment
+    plus global templates (environment_id IS NULL), with environment-specific
+    templates taking priority over global ones for the same key.
+    """
+    query = (
         select(OSTemplateMapping)
         .where(OSTemplateMapping.enabled == True)
         .order_by(OSTemplateMapping.os_family, OSTemplateMapping.display_name)
     )
+
+    if environment_id is not None:
+        from sqlalchemy import or_
+        query = query.where(
+            or_(
+                OSTemplateMapping.environment_id == environment_id,
+                OSTemplateMapping.environment_id.is_(None),
+            )
+        )
+
+    result = await db.execute(query)
     mappings = result.scalars().all()
 
     if mappings:
-        return {
-            m.key: {
-                "display_name": m.display_name,
-                "vmid": m.vmid,
-                "node": m.node,
-                "cloud_init": m.cloud_init,
-                "os_family": m.os_family,
-            }
-            for m in mappings
-        }
+        # Build dict: global first, then environment-specific overrides
+        templates = {}
+        for m in mappings:
+            if m.environment_id is None:
+                templates[m.key] = {
+                    "display_name": m.display_name,
+                    "vmid": m.vmid,
+                    "node": m.node,
+                    "cloud_init": m.cloud_init,
+                    "os_family": m.os_family,
+                }
+        for m in mappings:
+            if m.environment_id is not None:
+                templates[m.key] = {
+                    "display_name": m.display_name,
+                    "vmid": m.vmid,
+                    "node": m.node,
+                    "cloud_init": m.cloud_init,
+                    "os_family": m.os_family,
+                }
+        return templates
 
     # Fallback to YAML if no DB mappings
     return load_templates()

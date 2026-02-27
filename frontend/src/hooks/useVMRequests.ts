@@ -50,11 +50,11 @@ export function useTShirtSizes() {
   })
 }
 
-export function useOSTemplates() {
+export function useOSTemplates(environmentId?: number) {
   return useQuery({
-    queryKey: ['os-templates'],
-    queryFn: getOSTemplates,
-    staleTime: Infinity,
+    queryKey: ['os-templates', environmentId ?? 'all'],
+    queryFn: () => getOSTemplates(environmentId),
+    staleTime: 5 * 60 * 1000,
   })
 }
 

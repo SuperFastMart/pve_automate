@@ -40,8 +40,9 @@ export async function getTShirtSizes(): Promise<TShirtSizes> {
   return data
 }
 
-export async function getOSTemplates(): Promise<OSTemplates> {
-  const { data } = await api.get<OSTemplates>('/config/os-templates')
+export async function getOSTemplates(environmentId?: number): Promise<OSTemplates> {
+  const params = environmentId ? { environment_id: environmentId } : {}
+  const { data } = await api.get<OSTemplates>('/config/os-templates', { params })
   return data
 }
 
@@ -117,13 +118,15 @@ export async function getLocations(): Promise<Location[]> {
 }
 
 // Template management API
-export async function scanPVETemplates(): Promise<PVETemplate[]> {
-  const { data } = await api.get<PVETemplate[]>('/settings/templates/scan')
+export async function scanPVETemplates(environmentId?: number): Promise<PVETemplate[]> {
+  const params = environmentId ? { environment_id: environmentId } : {}
+  const { data } = await api.get<PVETemplate[]>('/settings/templates/scan', { params })
   return data
 }
 
-export async function getTemplateMappings(): Promise<OSTemplateMapping[]> {
-  const { data } = await api.get<OSTemplateMapping[]>('/settings/templates')
+export async function getTemplateMappings(environmentId?: number): Promise<OSTemplateMapping[]> {
+  const params = environmentId ? { environment_id: environmentId } : {}
+  const { data } = await api.get<OSTemplateMapping[]>('/settings/templates', { params })
   return data
 }
 

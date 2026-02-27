@@ -31,7 +31,6 @@ const emptyVM: VMEntry = {
 export default function DeploymentForm() {
   const navigate = useNavigate()
   const createDeployment = useCreateDeployment()
-  const { data: templates, isLoading: templatesLoading } = useOSTemplates()
   const { data: workloadTypes, isLoading: workloadsLoading } = useWorkloadTypes()
   const { data: sizes, isLoading: sizesLoading } = useTShirtSizes()
   const { data: subnets } = useQuery({ queryKey: ['subnets'], queryFn: getSubnets })
@@ -44,6 +43,8 @@ export default function DeploymentForm() {
   const [requestorEmail, setRequestorEmail] = useState('')
   const [workloadType, setWorkloadType] = useState('')
   const [selectedEnvironment, setSelectedEnvironment] = useState('')
+  const environmentId = selectedEnvironment ? Number(selectedEnvironment) : undefined
+  const { data: templates, isLoading: templatesLoading } = useOSTemplates(environmentId)
 
   // VM list
   const [vms, setVms] = useState<VMEntry[]>([{ ...emptyVM }])
@@ -208,7 +209,10 @@ export default function DeploymentForm() {
               <label className="block text-sm font-medium text-gray-700 mb-1">Environment</label>
               <select
                 value={selectedEnvironment}
-                onChange={(e) => setSelectedEnvironment(e.target.value)}
+                onChange={(e) => {
+                  setSelectedEnvironment(e.target.value)
+                  setVms(vms.map((vm) => ({ ...vm, os_template: '' })))
+                }}
                 className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
               >
                 {environments.length > 1 && <option value="">Select environment...</option>}

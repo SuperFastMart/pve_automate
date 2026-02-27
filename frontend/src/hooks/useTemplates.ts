@@ -10,14 +10,14 @@ import type { OSTemplateMapping } from '../types'
 
 export function useScanPVETemplates() {
   return useMutation({
-    mutationFn: scanPVETemplates,
+    mutationFn: (environmentId?: number) => scanPVETemplates(environmentId),
   })
 }
 
-export function useTemplateMappings() {
+export function useTemplateMappings(environmentId?: number) {
   return useQuery({
-    queryKey: ['template-mappings'],
-    queryFn: getTemplateMappings,
+    queryKey: ['template-mappings', environmentId ?? 'all'],
+    queryFn: () => getTemplateMappings(environmentId),
   })
 }
 

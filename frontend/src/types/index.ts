@@ -147,6 +147,7 @@ export interface OSTemplateMapping {
   os_family: 'linux' | 'windows'
   cloud_init: boolean
   enabled: boolean
+  environment_id: number | null
   created_at: string
   updated_at: string
 }

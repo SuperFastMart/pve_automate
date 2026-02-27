@@ -82,23 +82,43 @@ async def list_all_settings(db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/templates/scan", response_model=list[PVETemplateResponse])
-async def scan_proxmox_templates(db: AsyncSession = Depends(get_db)):
+async def scan_proxmox_templates(
+    environment_id: int | None = None,
+    db: AsyncSession = Depends(get_db),
+):
     """Query Proxmox for all template VMs across all nodes."""
     try:
-        settings = await get_effective_settings(db, group="proxmox")
-        host = settings.get("PVE_HOST", "")
-        if not host:
-            raise HTTPException(status_code=400, detail="PVE_HOST is not configured")
-
         from app.services.proxmox import ProxmoxService
 
-        pve = ProxmoxService(
-            host=host,
-            user=settings["PVE_USER"],
-            token_name=settings["PVE_TOKEN_NAME"],
-            token_value=settings["PVE_TOKEN_VALUE"],
-            verify_ssl=settings.get("PVE_VERIFY_SSL", "false").lower() in ("true", "1", "yes"),
-        )
+        if environment_id:
+            from app.models.pve_environment import PVEEnvironment
+
+            result = await db.execute(
+                select(PVEEnvironment).where(PVEEnvironment.id == environment_id)
+            )
+            env = result.scalar_one_or_none()
+            if not env:
+                raise HTTPException(status_code=404, detail="Environment not found")
+            pve = ProxmoxService(
+                host=env.pve_host,
+                user=env.pve_user,
+                token_name=env.pve_token_name,
+                token_value=env.pve_token_value,
+                verify_ssl=env.pve_verify_ssl,
+            )
+        else:
+            settings = await get_effective_settings(db, group="proxmox")
+            host = settings.get("PVE_HOST", "")
+            if not host:
+                raise HTTPException(status_code=400, detail="PVE_HOST is not configured")
+            pve = ProxmoxService(
+                host=host,
+                user=settings["PVE_USER"],
+                token_name=settings["PVE_TOKEN_NAME"],
+                token_value=settings["PVE_TOKEN_VALUE"],
+                verify_ssl=settings.get("PVE_VERIFY_SSL", "false").lower() in ("true", "1", "yes"),
+            )
+
         templates = await asyncio.to_thread(pve.get_templates)
         return templates
     except HTTPException:
@@ -108,11 +128,17 @@ async def scan_proxmox_templates(db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/templates", response_model=list[OSTemplateMappingResponse])
-async def list_template_mappings(db: AsyncSession = Depends(get_db)):
-    """List all saved template mappings."""
-    result = await db.execute(
-        select(OSTemplateMapping).order_by(OSTemplateMapping.os_family, OSTemplateMapping.display_name)
+async def list_template_mappings(
+    environment_id: int | None = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """List saved template mappings, optionally filtered by environment."""
+    query = select(OSTemplateMapping).order_by(
+        OSTemplateMapping.os_family, OSTemplateMapping.display_name
     )
+    if environment_id is not None:
+        query = query.where(OSTemplateMapping.environment_id == environment_id)
+    result = await db.execute(query)
     return result.scalars().all()
 
 
@@ -121,11 +147,15 @@ async def create_template_mapping(
     payload: OSTemplateMappingCreate, db: AsyncSession = Depends(get_db)
 ):
     """Create a new template mapping."""
-    existing = await db.execute(
-        select(OSTemplateMapping).where(OSTemplateMapping.key == payload.key)
-    )
+    # Uniqueness check scoped by environment
+    query = select(OSTemplateMapping).where(OSTemplateMapping.key == payload.key)
+    if payload.environment_id is not None:
+        query = query.where(OSTemplateMapping.environment_id == payload.environment_id)
+    else:
+        query = query.where(OSTemplateMapping.environment_id.is_(None))
+    existing = await db.execute(query)
     if existing.scalar_one_or_none():
-        raise HTTPException(status_code=409, detail=f"Template key '{payload.key}' already exists")
+        raise HTTPException(status_code=409, detail=f"Template key '{payload.key}' already exists for this environment")
 
     mapping = OSTemplateMapping(**payload.model_dump())
     db.add(mapping)
