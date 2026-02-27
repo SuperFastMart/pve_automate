@@ -102,6 +102,11 @@ class PhpIpamService:
             "ip": data["data"],
         }
 
+    async def update_ip(self, address_id: int, **fields) -> None:
+        """Update fields on an existing IP address record."""
+        resp = await self._client.patch(f"/addresses/{address_id}/", json=fields)
+        resp.raise_for_status()
+
     async def release_ip(self, address_id: int) -> None:
         """Delete an IP address record by its phpIPAM ID."""
         resp = await self._client.delete(f"/addresses/{address_id}/")

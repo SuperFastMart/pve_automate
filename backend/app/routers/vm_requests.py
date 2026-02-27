@@ -122,6 +122,19 @@ async def create_vm_request(
             await db.commit()
             await db.refresh(vm_request)
             await jira.close()
+
+            # Update phpIPAM record with Jira ticket link
+            if vm_request.phpipam_address_id and result.get("url"):
+                try:
+                    ipam = await get_phpipam_service(db)
+                    if ipam:
+                        await ipam.update_ip(
+                            vm_request.phpipam_address_id,
+                            note=f"Jira: {result['url']}",
+                        )
+                        await ipam.close()
+                except Exception as e:
+                    logger.warning(f"Failed to update phpIPAM with Jira link: {e}")
     except Exception as e:
         logger.warning(f"Failed to create Jira issue for request {vm_request.id}: {e}")
 
