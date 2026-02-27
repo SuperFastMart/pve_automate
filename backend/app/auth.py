@@ -54,6 +54,7 @@ async def _get_jwks(tenant_id: str) -> dict:
 def _extract_bearer_token(request: Request) -> str:
     """Extract Bearer token from Authorization header."""
     auth_header = request.headers.get("Authorization", "")
+    logger.info(f"Auth header present: {bool(auth_header)}, starts with Bearer: {auth_header.startswith('Bearer ')}")
     if not auth_header.startswith("Bearer "):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -82,6 +83,8 @@ async def get_current_user(request: Request) -> AuthenticatedUser:
         )
 
     token = _extract_bearer_token(request)
+    logger.info(f"Token received (first 20 chars): {token[:20]}...")
+    logger.info(f"Validating against tenant={tenant_id}, client_id={client_id}")
 
     try:
         unverified_header = jwt.get_unverified_header(token)
@@ -99,6 +102,10 @@ async def get_current_user(request: Request) -> AuthenticatedUser:
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Unable to find appropriate signing key",
             )
+
+        # Log unverified claims to debug audience/issuer mismatches
+        unverified_claims = jwt.get_unverified_claims(token)
+        logger.info(f"Token aud={unverified_claims.get('aud')}, iss={unverified_claims.get('iss')}")
 
         issuer = f"https://login.microsoftonline.com/{tenant_id}/v2.0"
         payload = jwt.decode(
