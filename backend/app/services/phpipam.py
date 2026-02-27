@@ -51,9 +51,27 @@ class PhpIpamService:
                 "description": s.get("description", ""),
                 "vlanId": s.get("vlanId"),
                 "sectionId": s.get("sectionId"),
+                "location": s.get("location"),
                 "usage": s.get("usage", {}),
             })
         return subnets
+
+    async def get_locations(self) -> list[dict]:
+        """Fetch all locations from phpIPAM."""
+        resp = await self._client.get("/tools/locations/")
+        resp.raise_for_status()
+        data = resp.json()
+        if not data.get("success"):
+            return []
+        return [
+            {
+                "id": int(loc["id"]),
+                "name": loc.get("name", ""),
+                "description": loc.get("description", ""),
+                "address": loc.get("address", ""),
+            }
+            for loc in data.get("data", [])
+        ]
 
     async def allocate_ip(
         self, subnet_id: int, hostname: str, description: str = ""

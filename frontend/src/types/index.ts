@@ -110,4 +110,13 @@ export interface Subnet {
   description: string
   vlanId: string | null
   sectionId: string | null
+  locationId: number | null
+  locationName: string | null
+}
+
+export interface Location {
+  id: number
+  name: string
+  description: string
+  address: string
 }

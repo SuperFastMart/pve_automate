@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { VMRequest, VMRequestList, TShirtSizes, OSTemplates, WorkloadType, SettingsGroup, SettingItem, ConnectionTestResult, PVETemplate, OSTemplateMapping, Subnet } from '../types'
+import type { VMRequest, VMRequestList, TShirtSizes, OSTemplates, WorkloadType, SettingsGroup, SettingItem, ConnectionTestResult, PVETemplate, OSTemplateMapping, Subnet, Location } from '../types'
 
 const api = axios.create({
   baseURL: '/api/v1',
@@ -99,6 +99,11 @@ export async function testPhpIpamConnection(): Promise<ConnectionTestResult> {
 
 export async function getSubnets(): Promise<Subnet[]> {
   const { data } = await api.get<Subnet[]>('/config/subnets')
+  return data
+}
+
+export async function getLocations(): Promise<Location[]> {
+  const { data } = await api.get<Location[]>('/config/locations')
   return data
 }
 

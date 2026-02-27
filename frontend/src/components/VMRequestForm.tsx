@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useCreateVMRequest, useTShirtSizes, useOSTemplates, useWorkloadTypes } from '../hooks/useVMRequests'
-import { getSubnets } from '../api/client'
+import { getSubnets, getLocations } from '../api/client'
 import TShirtSizeCard from './TShirtSizeCard'
 
 const schema = z.object({
@@ -31,7 +31,15 @@ export default function VMRequestForm() {
   const { data: templates, isLoading: templatesLoading } = useOSTemplates()
   const { data: workloadTypes, isLoading: workloadsLoading } = useWorkloadTypes()
   const { data: subnets } = useQuery({ queryKey: ['subnets'], queryFn: getSubnets })
+  const { data: locations } = useQuery({ queryKey: ['locations'], queryFn: getLocations })
+  const [selectedLocation, setSelectedLocation] = useState<string>('')
   const [selectedSubnet, setSelectedSubnet] = useState<string>('')
+
+  // Filter subnets by selected location
+  const filteredSubnets = subnets?.filter((s) => {
+    if (!selectedLocation) return true
+    return s.locationId !== null && String(s.locationId) === selectedLocation
+  })
 
   const {
     register,
@@ -173,24 +181,46 @@ export default function VMRequestForm() {
           </div>
 
           {subnets && subnets.length > 0 && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Network / Subnet</label>
-              <select
-                value={selectedSubnet}
-                onChange={(e) => setSelectedSubnet(e.target.value)}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
-              >
-                <option value="">No subnet (manual IP assignment)</option>
-                {subnets.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.description ? `${s.description} (${s.subnet}/${s.mask})` : `${s.subnet}/${s.mask}`}
-                  </option>
-                ))}
-              </select>
-              <p className="mt-1 text-xs text-gray-400">
-                Select a subnet to auto-allocate an IP address from phpIPAM
-              </p>
-            </div>
+            <>
+              {locations && locations.length > 1 && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+                  <select
+                    value={selectedLocation}
+                    onChange={(e) => {
+                      setSelectedLocation(e.target.value)
+                      setSelectedSubnet('')
+                    }}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                  >
+                    <option value="">All locations</option>
+                    {locations.map((loc) => (
+                      <option key={loc.id} value={loc.id}>
+                        {loc.name}{loc.description ? ` — ${loc.description}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Network / Subnet</label>
+                <select
+                  value={selectedSubnet}
+                  onChange={(e) => setSelectedSubnet(e.target.value)}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                >
+                  <option value="">No subnet (manual IP assignment)</option>
+                  {filteredSubnets?.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.description ? `${s.description} (${s.subnet}/${s.mask})` : `${s.subnet}/${s.mask}`}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-gray-400">
+                  Select a subnet to auto-allocate an IP address from phpIPAM
+                </p>
+              </div>
+            </>
           )}
 
           <div>

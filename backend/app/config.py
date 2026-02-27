@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     PHPIPAM_USER: str = ""
     PHPIPAM_PASSWORD: str = ""
     PHPIPAM_DEFAULT_SUBNET_ID: int = 10
+    PHPIPAM_ALLOWED_LOCATION_IDS: str = ""
 
     # SMTP
     SMTP_HOST: str = "localhost"
@@ -79,7 +80,8 @@ SETTINGS_REGISTRY: dict[str, dict] = {
     "PHPIPAM_TOKEN":             {"group": "phpipam", "display_name": "API Token",           "is_secret": True},
     "PHPIPAM_USER":              {"group": "phpipam", "display_name": "phpIPAM User",        "is_secret": False},
     "PHPIPAM_PASSWORD":          {"group": "phpipam", "display_name": "phpIPAM Password",    "is_secret": True},
-    "PHPIPAM_DEFAULT_SUBNET_ID": {"group": "phpipam", "display_name": "Default Subnet ID",  "is_secret": False},
+    "PHPIPAM_DEFAULT_SUBNET_ID":    {"group": "phpipam", "display_name": "Default Subnet ID",    "is_secret": False},
+    "PHPIPAM_ALLOWED_LOCATION_IDS": {"group": "phpipam", "display_name": "Allowed Location IDs", "is_secret": False},
     # SMTP
     "SMTP_HOST":     {"group": "smtp", "display_name": "SMTP Host",           "is_secret": False},
     "SMTP_PORT":     {"group": "smtp", "display_name": "SMTP Port",           "is_secret": False},
