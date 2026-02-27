@@ -92,10 +92,25 @@ class ProxmoxService:
                 break
 
         if disk_key:
-            self.proxmox.nodes(node).qemu(vmid).resize.put(
-                disk=disk_key,
-                size=f"{disk_gb}G",
-            )
+            # Parse current disk size to avoid shrink errors
+            # Format: "local-lvm:vm-100-disk-0,size=32G" or similar
+            import re
+            current_size_gb = 0
+            disk_val = str(config.get(disk_key, ""))
+            size_match = re.search(r"size=(\d+)G", disk_val)
+            if size_match:
+                current_size_gb = int(size_match.group(1))
+
+            if disk_gb > current_size_gb:
+                self.proxmox.nodes(node).qemu(vmid).resize.put(
+                    disk=disk_key,
+                    size=f"{disk_gb}G",
+                )
+            else:
+                logger.info(
+                    f"Skipping disk resize for VMID {vmid}: "
+                    f"current {current_size_gb}G >= target {disk_gb}G"
+                )
 
     def configure_cloud_init(
         self,

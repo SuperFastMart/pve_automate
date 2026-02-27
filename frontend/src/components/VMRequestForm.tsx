@@ -1,8 +1,11 @@
+import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { useCreateVMRequest, useTShirtSizes, useOSTemplates, useWorkloadTypes } from '../hooks/useVMRequests'
+import { getSubnets } from '../api/client'
 import TShirtSizeCard from './TShirtSizeCard'
 
 const schema = z.object({
@@ -27,6 +30,8 @@ export default function VMRequestForm() {
   const { data: sizes, isLoading: sizesLoading } = useTShirtSizes()
   const { data: templates, isLoading: templatesLoading } = useOSTemplates()
   const { data: workloadTypes, isLoading: workloadsLoading } = useWorkloadTypes()
+  const { data: subnets } = useQuery({ queryKey: ['subnets'], queryFn: getSubnets })
+  const [selectedSubnet, setSelectedSubnet] = useState<string>('')
 
   const {
     register,
@@ -42,7 +47,11 @@ export default function VMRequestForm() {
   const selectedSize = watch('tshirt_size')
 
   const onSubmit = async (data: FormData) => {
-    const result = await createRequest.mutateAsync(data)
+    const payload = {
+      ...data,
+      ...(selectedSubnet ? { subnet_id: Number(selectedSubnet) } : {}),
+    }
+    const result = await createRequest.mutateAsync(payload)
     navigate(`/request/${result.id}`)
   }
 
@@ -162,6 +171,27 @@ export default function VMRequestForm() {
               <p className="mt-1 text-sm text-red-600">{errors.os_template.message}</p>
             )}
           </div>
+
+          {subnets && subnets.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Network / Subnet</label>
+              <select
+                value={selectedSubnet}
+                onChange={(e) => setSelectedSubnet(e.target.value)}
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+              >
+                <option value="">No subnet (manual IP assignment)</option>
+                {subnets.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.description ? `${s.description} (${s.subnet}/${s.mask})` : `${s.subnet}/${s.mask}`}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-gray-400">
+                Select a subnet to auto-allocate an IP address from phpIPAM
+              </p>
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>

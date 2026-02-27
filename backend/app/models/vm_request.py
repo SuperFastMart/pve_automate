@@ -50,6 +50,8 @@ class VMRequest(Base):
     proxmox_node = Column(String(100), nullable=True)
     ip_address = Column(String(45), nullable=True)
     vlan_id = Column(Integer, nullable=True)
+    subnet_id = Column(Integer, nullable=True)
+    phpipam_address_id = Column(Integer, nullable=True)
 
     # Error tracking
     error_message = Column(Text, nullable=True)

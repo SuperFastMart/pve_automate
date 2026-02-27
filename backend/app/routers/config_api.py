@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -5,6 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import load_templates, load_tshirt_sizes, load_workload_types
 from app.database import get_db
 from app.models.os_template import OSTemplateMapping
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/config", tags=["config"])
 
@@ -43,3 +47,20 @@ async def get_os_templates(db: AsyncSession = Depends(get_db)):
 @router.get("/workload-types")
 async def get_workload_types():
     return load_workload_types()
+
+
+@router.get("/subnets")
+async def get_subnets(db: AsyncSession = Depends(get_db)):
+    """Fetch available subnets from phpIPAM. Returns empty list if not configured."""
+    try:
+        from app.services.phpipam import get_phpipam_service
+
+        ipam = await get_phpipam_service(db)
+        if not ipam:
+            return []
+        subnets = await ipam.get_subnets()
+        await ipam.close()
+        return subnets
+    except Exception as e:
+        logger.warning(f"Failed to fetch subnets from phpIPAM: {e}")
+        return []

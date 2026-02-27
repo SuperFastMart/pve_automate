@@ -102,3 +102,12 @@ export interface ConnectionTestResult {
   success: boolean
   message: string
 }
+
+export interface Subnet {
+  id: number
+  subnet: string
+  mask: string
+  description: string
+  vlanId: string | null
+  sectionId: string | null
+}

@@ -5,6 +5,7 @@ import {
   deleteSetting,
   testProxmoxConnection,
   testJiraConnection,
+  testPhpIpamConnection,
 } from '../api/client'
 
 export function useSettings() {
@@ -44,5 +45,11 @@ export function useTestProxmox() {
 export function useTestJira() {
   return useMutation({
     mutationFn: testJiraConnection,
+  })
+}
+
+export function useTestPhpIpam() {
+  return useMutation({
+    mutationFn: testPhpIpamConnection,
   })
 }

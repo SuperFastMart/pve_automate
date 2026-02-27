@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     # phpIPAM
     PHPIPAM_URL: str = ""
     PHPIPAM_APP_ID: str = ""
+    PHPIPAM_TOKEN: str = ""
     PHPIPAM_USER: str = ""
     PHPIPAM_PASSWORD: str = ""
     PHPIPAM_DEFAULT_SUBNET_ID: int = 10
@@ -75,6 +76,7 @@ SETTINGS_REGISTRY: dict[str, dict] = {
     # phpIPAM
     "PHPIPAM_URL":               {"group": "phpipam", "display_name": "phpIPAM URL",         "is_secret": False},
     "PHPIPAM_APP_ID":            {"group": "phpipam", "display_name": "App ID",              "is_secret": False},
+    "PHPIPAM_TOKEN":             {"group": "phpipam", "display_name": "API Token",           "is_secret": True},
     "PHPIPAM_USER":              {"group": "phpipam", "display_name": "phpIPAM User",        "is_secret": False},
     "PHPIPAM_PASSWORD":          {"group": "phpipam", "display_name": "phpIPAM Password",    "is_secret": True},
     "PHPIPAM_DEFAULT_SUBNET_ID": {"group": "phpipam", "display_name": "Default Subnet ID",  "is_secret": False},

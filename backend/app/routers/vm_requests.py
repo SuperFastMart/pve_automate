@@ -12,6 +12,7 @@ from app.database import get_db
 from app.models.vm_request import RequestStatus, VMRequest
 from app.schemas.vm_request import VMRequestCreate, VMRequestList, VMRequestResponse
 from app.services.jira import get_jira_service, get_jira_settings
+from app.services.phpipam import get_phpipam_service
 from app.services.provisioning import provision_vm
 
 logger = logging.getLogger(__name__)
@@ -41,12 +42,35 @@ async def create_vm_request(
         cpu_cores=size_config["cpu_cores"],
         ram_mb=size_config["ram_mb"],
         disk_gb=size_config["disk_gb"],
+        subnet_id=payload.subnet_id,
         status=RequestStatus.PENDING_APPROVAL,
     )
 
     db.add(vm_request)
     await db.commit()
     await db.refresh(vm_request)
+
+    # Allocate IP from phpIPAM (non-blocking — don't fail the request if phpIPAM is down)
+    if payload.subnet_id:
+        try:
+            ipam = await get_phpipam_service(db)
+            if ipam:
+                allocation = await ipam.allocate_ip(
+                    subnet_id=payload.subnet_id,
+                    hostname=payload.vm_name,
+                    description=f"Peevinator request #{vm_request.id}",
+                )
+                vm_request.ip_address = allocation["ip"]
+                vm_request.phpipam_address_id = allocation["id"]
+                await db.commit()
+                await db.refresh(vm_request)
+                await ipam.close()
+                logger.info(
+                    f"Allocated IP {allocation['ip']} (phpIPAM ID {allocation['id']}) "
+                    f"for request {vm_request.id}"
+                )
+        except Exception as e:
+            logger.warning(f"Failed to allocate IP for request {vm_request.id}: {e}")
 
     # Create Jira issue (non-blocking — don't fail the request if Jira is down)
     try:
@@ -172,6 +196,10 @@ async def reject_vm_request(
     await db.commit()
     await db.refresh(vm_request)
 
+    # Release phpIPAM IP allocation (fire-and-forget)
+    if vm_request.phpipam_address_id:
+        asyncio.create_task(_release_phpipam_ip(vm_request.phpipam_address_id))
+
     # Sync rejection to Jira (fire-and-forget)
     if vm_request.jira_issue_key:
         asyncio.create_task(
@@ -202,3 +230,19 @@ async def _sync_jira_transition(issue_key: str, action: str, comment: str) -> No
             await jira.close()
     except Exception as e:
         logger.warning(f"Failed to sync {action} to Jira issue {issue_key}: {e}")
+
+
+async def _release_phpipam_ip(address_id: int) -> None:
+    """Background task: release an IP address in phpIPAM."""
+    from app.database import async_session
+
+    try:
+        async with async_session() as db:
+            ipam = await get_phpipam_service(db)
+            if not ipam:
+                return
+            await ipam.release_ip(address_id)
+            await ipam.close()
+            logger.info(f"Released phpIPAM address ID {address_id}")
+    except Exception as e:
+        logger.warning(f"Failed to release phpIPAM address {address_id}: {e}")

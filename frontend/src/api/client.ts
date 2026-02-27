@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { VMRequest, VMRequestList, TShirtSizes, OSTemplates, WorkloadType, SettingsGroup, SettingItem, ConnectionTestResult, PVETemplate, OSTemplateMapping } from '../types'
+import type { VMRequest, VMRequestList, TShirtSizes, OSTemplates, WorkloadType, SettingsGroup, SettingItem, ConnectionTestResult, PVETemplate, OSTemplateMapping, Subnet } from '../types'
 
 const api = axios.create({
   baseURL: '/api/v1',
@@ -13,6 +13,7 @@ export interface CreateVMRequestPayload {
   workload_type: string
   os_template: string
   tshirt_size: string
+  subnet_id?: number
 }
 
 export async function createVMRequest(payload: CreateVMRequestPayload): Promise<VMRequest> {
@@ -88,6 +89,16 @@ export async function testProxmoxConnection(): Promise<ConnectionTestResult> {
 
 export async function testJiraConnection(): Promise<ConnectionTestResult> {
   const { data } = await api.post<ConnectionTestResult>('/settings/jira/test')
+  return data
+}
+
+export async function testPhpIpamConnection(): Promise<ConnectionTestResult> {
+  const { data } = await api.post<ConnectionTestResult>('/settings/phpipam/test')
+  return data
+}
+
+export async function getSubnets(): Promise<Subnet[]> {
+  const { data } = await api.get<Subnet[]>('/config/subnets')
   return data
 }
 

@@ -224,6 +224,29 @@ async def test_jira_connection(db: AsyncSession = Depends(get_db)):
         return ConnectionTestResult(success=False, message=str(e))
 
 
+@router.post("/phpipam/test", response_model=ConnectionTestResult)
+async def test_phpipam_connection(db: AsyncSession = Depends(get_db)):
+    """Test connectivity to phpIPAM with current effective settings."""
+    try:
+        from app.services.phpipam import get_phpipam_service
+
+        ipam = await get_phpipam_service(db)
+        if not ipam:
+            return ConnectionTestResult(
+                success=False,
+                message="phpIPAM is not configured (missing URL, App ID, or Token)",
+            )
+
+        subnets = await ipam.test_connection()
+        await ipam.close()
+        return ConnectionTestResult(
+            success=True,
+            message=f"Connected to phpIPAM — {len(subnets)} subnet(s) available",
+        )
+    except Exception as e:
+        return ConnectionTestResult(success=False, message=str(e))
+
+
 # ── Settings CRUD (wildcard routes last) ─────────────────────────────
 
 

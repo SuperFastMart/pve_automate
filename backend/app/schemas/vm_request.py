@@ -20,6 +20,7 @@ class VMRequestCreate(BaseModel):
     workload_type: str
     os_template: str
     tshirt_size: str = Field(..., pattern=r"^(XS|S|M|L|XL)$")
+    subnet_id: Optional[int] = None
 
 
 class VMRequestResponse(BaseModel):
@@ -40,6 +41,8 @@ class VMRequestResponse(BaseModel):
     proxmox_vmid: Optional[int]
     proxmox_node: Optional[str]
     ip_address: Optional[str]
+    subnet_id: Optional[int]
+    phpipam_address_id: Optional[int]
     error_message: Optional[str]
     created_at: datetime
     updated_at: datetime
