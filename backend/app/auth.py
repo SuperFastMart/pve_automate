@@ -121,7 +121,7 @@ async def get_current_user(request: Request) -> AuthenticatedUser:
 
         return AuthenticatedUser(
             name=payload.get("name", "Unknown"),
-            email=payload.get("preferred_username", payload.get("email", "")),
+            email=payload.get("preferred_username", payload.get("upn", payload.get("email", ""))),
             oid=payload.get("oid", ""),
             roles=payload.get("roles", []),
         )
