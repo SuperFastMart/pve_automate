@@ -39,22 +39,44 @@ export default function VMRequestForm() {
   const environmentId = selectedEnvironment ? Number(selectedEnvironment) : undefined
   const { data: templates, isLoading: templatesLoading } = useOSTemplates(environmentId)
   const [selectedLocation, setSelectedLocation] = useState<string>('')
+
+  // Filter environments by selected location
+  const filteredEnvironments = environments?.filter((e) => {
+    if (!selectedLocation) return true
+    return e.location_id !== null && String(e.location_id) === selectedLocation
+  })
+
+  // When location changes, reset environment if it no longer matches
+  useEffect(() => {
+    if (!selectedLocation || !filteredEnvironments) return
+    const currentStillValid = filteredEnvironments.some((e) => String(e.id) === selectedEnvironment)
+    if (!currentStillValid) {
+      if (filteredEnvironments.length === 1) {
+        setSelectedEnvironment(String(filteredEnvironments[0].id))
+      } else {
+        setSelectedEnvironment('')
+      }
+      setValue('os_template', '')
+    }
+  }, [selectedLocation]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const [selectedSubnet, setSelectedSubnet] = useState<string>('')
   const [subnetSearch, setSubnetSearch] = useState('')
   const [subnetDropdownOpen, setSubnetDropdownOpen] = useState(false)
   const subnetRef = useRef<HTMLDivElement>(null)
 
-  // Auto-select default environment (or the only one)
+  // Auto-select default environment (or the only one) from filtered list
   useEffect(() => {
-    if (environments && environments.length > 0 && !selectedEnvironment) {
-      const defaultEnv = environments.find((e) => e.is_default)
+    const envs = filteredEnvironments
+    if (envs && envs.length > 0 && !selectedEnvironment) {
+      const defaultEnv = envs.find((e) => e.is_default)
       if (defaultEnv) {
         setSelectedEnvironment(String(defaultEnv.id))
-      } else if (environments.length === 1) {
-        setSelectedEnvironment(String(environments[0].id))
+      } else if (envs.length === 1) {
+        setSelectedEnvironment(String(envs[0].id))
       }
     }
-  }, [environments, selectedEnvironment])
+  }, [filteredEnvironments, selectedEnvironment])
 
   // Filter subnets by selected location
   const locationFiltered = subnets?.filter((s) => {
@@ -142,30 +164,58 @@ export default function VMRequestForm() {
         </div>
       </div>
 
-      {/* Environment Selection */}
-      {environments && environments.length > 0 && (
+      {/* Location & Environment Selection */}
+      {((environments && environments.length > 0) || (locations && locations.length > 1)) && (
         <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Environment</h2>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Proxmox Environment</label>
-            <select
-              value={selectedEnvironment}
-              onChange={(e) => {
-                setSelectedEnvironment(e.target.value)
-                setValue('os_template', '')
-              }}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
-            >
-              {environments.length > 1 && <option value="">Select environment...</option>}
-              {environments.map((env) => (
-                <option key={env.id} value={env.id}>
-                  {env.display_name}{env.description ? ` — ${env.description}` : ''}
-                </option>
-              ))}
-            </select>
-            <p className="mt-1 text-xs text-gray-400">
-              Select the Proxmox cluster where this VM will be deployed
-            </p>
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Placement</h2>
+          <div className="space-y-4">
+            {locations && locations.length > 1 && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Preferred Location</label>
+                <select
+                  value={selectedLocation}
+                  onChange={(e) => {
+                    setSelectedLocation(e.target.value)
+                    setSelectedSubnet('')
+                    setSubnetSearch('')
+                  }}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                >
+                  <option value="">All locations</option>
+                  {locations.map((loc) => (
+                    <option key={loc.id} value={loc.id}>
+                      {loc.name}{loc.description ? ` — ${loc.description}` : ''}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-gray-400">
+                  Filters available environments and subnets to this location
+                </p>
+              </div>
+            )}
+            {filteredEnvironments && filteredEnvironments.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Environment</label>
+                <select
+                  value={selectedEnvironment}
+                  onChange={(e) => {
+                    setSelectedEnvironment(e.target.value)
+                    setValue('os_template', '')
+                  }}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                >
+                  {filteredEnvironments.length > 1 && <option value="">Select environment...</option>}
+                  {filteredEnvironments.map((env) => (
+                    <option key={env.id} value={env.id}>
+                      {env.display_name}{env.description ? ` — ${env.description}` : ''}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-gray-400">
+                  Select the hypervisor environment where this VM will be deployed
+                </p>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -253,27 +303,6 @@ export default function VMRequestForm() {
 
           {subnets && subnets.length > 0 && (
             <>
-              {locations && locations.length > 1 && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
-                  <select
-                    value={selectedLocation}
-                    onChange={(e) => {
-                      setSelectedLocation(e.target.value)
-                      setSelectedSubnet('')
-                      setSubnetSearch('')
-                    }}
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
-                  >
-                    <option value="">All locations</option>
-                    {locations.map((loc) => (
-                      <option key={loc.id} value={loc.id}>
-                        {loc.name}{loc.description ? ` — ${loc.description}` : ''}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
               <div ref={subnetRef} className="relative">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Network / Subnet</label>
                 <div

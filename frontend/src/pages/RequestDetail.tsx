@@ -21,8 +21,8 @@ export default function RequestDetail() {
 
   const provisioningDetails = [
     { label: 'Jira Ticket', value: req.jira_issue_key, link: req.jira_issue_url },
-    { label: 'Proxmox VMID', value: req.proxmox_vmid },
-    { label: 'Proxmox Node', value: req.proxmox_node },
+    { label: 'VM ID', value: req.hypervisor_vm_id ?? req.proxmox_vmid },
+    { label: 'Host', value: req.hypervisor_host ?? req.proxmox_node },
     { label: 'IP Address', value: req.ip_address },
   ]
 

@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from datetime import datetime, timezone
+from typing import NamedTuple
 
 from sqlalchemy import select
 
@@ -16,24 +17,34 @@ from app.services.proxmox import ProxmoxService
 logger = logging.getLogger(__name__)
 
 
-async def _get_proxmox_service(db, environment_id: int | None = None) -> ProxmoxService:
-    """Create a ProxmoxService from environment credentials, falling back to global settings."""
-    if environment_id:
-        from app.models.pve_environment import PVEEnvironment
-        result = await db.execute(
-            select(PVEEnvironment).where(PVEEnvironment.id == environment_id)
-        )
-        env = result.scalar_one_or_none()
-        if env:
-            return ProxmoxService(
-                host=env.pve_host,
-                user=env.pve_user,
-                token_name=env.pve_token_name,
-                token_value=env.pve_token_value,
-                verify_ssl=env.pve_verify_ssl,
-            )
-        logger.warning(f"Environment {environment_id} not found, falling back to global settings")
+class TemplateInfo(NamedTuple):
+    vmid: int | None  # Proxmox template VMID
+    node: str | None  # Proxmox source node
+    template_ref: str | None  # vSphere template name
+    cloud_init: bool
 
+
+async def _get_environment(db, environment_id: int | None):
+    """Fetch environment record, or None if not specified / not found."""
+    if not environment_id:
+        return None
+    from app.models.environment import Environment
+    result = await db.execute(
+        select(Environment).where(Environment.id == environment_id)
+    )
+    return result.scalar_one_or_none()
+
+
+async def _get_proxmox_service(db, env=None) -> ProxmoxService:
+    """Create a ProxmoxService from environment or global settings."""
+    if env:
+        return ProxmoxService(
+            host=env.pve_host,
+            user=env.pve_user,
+            token_name=env.pve_token_name,
+            token_value=env.pve_token_value,
+            verify_ssl=env.pve_verify_ssl,
+        )
     # Fallback to global settings (backward compat)
     settings = await get_effective_settings(db, group="proxmox")
     return ProxmoxService(
@@ -41,15 +52,27 @@ async def _get_proxmox_service(db, environment_id: int | None = None) -> Proxmox
         user=settings["PVE_USER"],
         token_name=settings["PVE_TOKEN_NAME"],
         token_value=settings["PVE_TOKEN_VALUE"],
-        verify_ssl=settings.get("PVE_VERIFY_SSL", "false").lower()
-        in ("true", "1", "yes"),
+        verify_ssl=settings.get("PVE_VERIFY_SSL", "false").lower() in ("true", "1", "yes"),
     )
 
 
-async def _resolve_template(db, template_key: str, environment_id: int | None = None):
+def _get_vsphere_service(env):
+    """Create a VSphereService from environment credentials."""
+    from app.services.vsphere import VSphereService
+    return VSphereService(
+        host=env.vsphere_host,
+        user=env.vsphere_user,
+        password=env.vsphere_password,
+        port=env.vsphere_port,
+        verify_ssl=env.vsphere_verify_ssl,
+        datacenter=env.vsphere_datacenter,
+        cluster=env.vsphere_cluster,
+    )
+
+
+async def _resolve_template(db, template_key: str, environment_id: int | None = None) -> TemplateInfo:
     """Resolve a template mapping, preferring environment-specific over global."""
     if environment_id:
-        # Try environment-specific first
         result = await db.execute(
             select(OSTemplateMapping)
             .where(OSTemplateMapping.key == template_key)
@@ -57,7 +80,7 @@ async def _resolve_template(db, template_key: str, environment_id: int | None = 
         )
         mapping = result.scalar_one_or_none()
         if mapping:
-            return mapping.vmid, mapping.node, mapping.cloud_init
+            return TemplateInfo(mapping.vmid, mapping.node, mapping.template_ref, mapping.cloud_init)
 
     # Fall back to global (environment_id IS NULL)
     result = await db.execute(
@@ -67,30 +90,154 @@ async def _resolve_template(db, template_key: str, environment_id: int | None = 
     )
     mapping = result.scalar_one_or_none()
     if mapping:
-        return mapping.vmid, mapping.node, mapping.cloud_init
+        return TemplateInfo(mapping.vmid, mapping.node, mapping.template_ref, mapping.cloud_init)
 
     # Final fallback to YAML
     templates = load_templates()
     template_config = templates.get(template_key)
     if not template_config:
         raise ValueError(f"Unknown OS template: {template_key}")
-    return template_config["vmid"], template_config["node"], template_config.get("cloud_init", False)
+    return TemplateInfo(
+        template_config["vmid"], template_config["node"],
+        None, template_config.get("cloud_init", False),
+    )
 
+
+# ── Proxmox provisioning ────────────────────────────────────────
+
+async def _provision_proxmox_vm(db, vm_request: VMRequest, pve: ProxmoxService) -> None:
+    """Provision a single VM on Proxmox."""
+    tmpl = await _resolve_template(db, vm_request.os_template, vm_request.environment_id)
+
+    all_settings = await get_effective_settings(db)
+    strategy = all_settings.get("NODE_SELECTION_STRATEGY", "least_memory")
+
+    selector = NodeSelector(pve)
+    target_node = await asyncio.to_thread(selector.select_node, strategy)
+    logger.info(f"Selected node {target_node} for VM {vm_request.vm_name}")
+
+    new_vmid = await asyncio.to_thread(pve.get_next_vmid)
+    logger.info(f"Allocated VMID {new_vmid} for VM {vm_request.vm_name}")
+
+    upid = await asyncio.to_thread(
+        pve.clone_vm, tmpl.node, tmpl.vmid, new_vmid,
+        vm_request.vm_name, target_node, True,
+    )
+    logger.info(f"Clone task started: {upid}")
+
+    success = await asyncio.to_thread(pve.wait_for_task, tmpl.node, upid, 600)
+    if not success:
+        raise RuntimeError(f"Clone task failed: {upid}")
+    logger.info(f"Clone completed for VMID {new_vmid}")
+
+    await asyncio.to_thread(
+        pve.resize_vm, target_node, new_vmid,
+        vm_request.cpu_cores, vm_request.ram_mb, vm_request.disk_gb,
+    )
+    logger.info(f"Resized VMID {new_vmid}: {vm_request.cpu_cores}C / {vm_request.ram_mb}MB / {vm_request.disk_gb}GB")
+
+    if tmpl.cloud_init and vm_request.ip_address:
+        await asyncio.to_thread(
+            pve.configure_cloud_init, target_node, new_vmid, vm_request.ip_address,
+        )
+        logger.info(f"Configured cloud-init for VMID {new_vmid}")
+
+    start_upid = await asyncio.to_thread(pve.start_vm, target_node, new_vmid)
+    await asyncio.to_thread(pve.wait_for_task, target_node, start_upid, 120)
+    logger.info(f"Started VMID {new_vmid}")
+
+    # Update DB — legacy + generic fields
+    vm_request.status = RequestStatus.COMPLETED
+    vm_request.proxmox_vmid = new_vmid
+    vm_request.proxmox_node = target_node
+    vm_request.hypervisor_vm_id = str(new_vmid)
+    vm_request.hypervisor_host = target_node
+    vm_request.completed_at = datetime.now(timezone.utc)
+
+
+# ── vSphere provisioning ────────────────────────────────────────
+
+async def _provision_vsphere_vm(db, vm_request: VMRequest, env) -> None:
+    """Provision a single VM on ESXi / vCenter."""
+    from app.services.vsphere import VSphereService
+
+    tmpl = await _resolve_template(db, vm_request.os_template, vm_request.environment_id)
+    template_name = tmpl.template_ref
+    if not template_name:
+        raise ValueError(
+            f"Template '{vm_request.os_template}' has no template_ref for vSphere. "
+            f"Configure a template mapping with template_ref for this environment."
+        )
+
+    vs = _get_vsphere_service(env)
+    try:
+        # Select target host
+        hosts = await asyncio.to_thread(vs.get_hosts)
+        connected = [h for h in hosts if h["connection_state"] == "connected"]
+        if not connected:
+            raise RuntimeError("No connected ESXi hosts found")
+
+        # Pick host with most free memory
+        target_host = min(
+            connected,
+            key=lambda h: h["memory_used_bytes"] / max(h["memory_total_bytes"], 1),
+        )["name"]
+        logger.info(f"Selected host {target_host} for VM {vm_request.vm_name}")
+
+        # Clone template (CPU/RAM set during clone)
+        moref = await asyncio.to_thread(
+            vs.clone_vm, template_name, vm_request.vm_name,
+            target_host, vm_request.cpu_cores, vm_request.ram_mb,
+        )
+        logger.info(f"Cloned template '{template_name}' → '{vm_request.vm_name}' (MoRef: {moref})")
+
+        # Resize disk (if needed — clone already set CPU/RAM)
+        await asyncio.to_thread(
+            vs.resize_vm, vm_request.vm_name,
+            vm_request.cpu_cores, vm_request.ram_mb, vm_request.disk_gb,
+        )
+        logger.info(f"Resized {vm_request.vm_name}: {vm_request.cpu_cores}C / {vm_request.ram_mb}MB / {vm_request.disk_gb}GB")
+
+        # Network configuration
+        if tmpl.cloud_init and vm_request.ip_address:
+            await asyncio.to_thread(
+                vs.configure_network, vm_request.vm_name, vm_request.ip_address,
+            )
+            logger.info(f"Configured network for {vm_request.vm_name}")
+
+        # Start VM
+        await asyncio.to_thread(vs.start_vm, vm_request.vm_name)
+        logger.info(f"Started VM '{vm_request.vm_name}'")
+
+        # Update DB — generic fields (no legacy proxmox fields)
+        vm_request.status = RequestStatus.COMPLETED
+        vm_request.hypervisor_vm_id = moref
+        vm_request.hypervisor_host = target_host
+        vm_request.completed_at = datetime.now(timezone.utc)
+    finally:
+        await asyncio.to_thread(vs.disconnect)
+
+
+# ── Dispatch ─────────────────────────────────────────────────────
+
+async def _provision_single_vm(db, vm_request: VMRequest, env=None, pve: ProxmoxService | None = None) -> None:
+    """Provision a single VM, dispatching by environment type."""
+    env_type = getattr(env, "environment_type", "proxmox") if env else "proxmox"
+
+    if env_type == "proxmox":
+        if pve is None:
+            pve = await _get_proxmox_service(db, env)
+        await _provision_proxmox_vm(db, vm_request, pve)
+    elif env_type in ("esxi", "vcenter"):
+        await _provision_vsphere_vm(db, vm_request, env)
+    else:
+        raise ValueError(f"Unknown environment type: {env_type}")
+
+
+# ── Public entry points ──────────────────────────────────────────
 
 async def provision_vm(request_id: int) -> None:
-    """Full provisioning pipeline. Runs as a background task.
-
-    Steps:
-    1. Update status to PROVISIONING
-    2. Select target node (least_memory strategy)
-    3. Get next available VMID
-    4. Clone template to target node
-    5. Wait for clone task to complete
-    6. Resize CPU/RAM/disk
-    7. Configure network (cloud-init for Linux)
-    8. Start the VM
-    9. Update status to COMPLETED (or PROVISIONING_FAILED on error)
-    """
+    """Full provisioning pipeline. Runs as a background task."""
     async with async_session() as db:
         try:
             result = await db.execute(
@@ -101,112 +248,32 @@ async def provision_vm(request_id: int) -> None:
                 logger.error(f"VM request {request_id} not found")
                 return
 
-            # Set status to PROVISIONING
             vm_request.status = RequestStatus.PROVISIONING
             vm_request.error_message = None
             await db.commit()
 
-            # Jira comment: provisioning started
             await _jira_comment(
                 db, vm_request.jira_issue_key,
                 f"Provisioning started for VM '{vm_request.vm_name}'..."
             )
 
-            # Initialize Proxmox service (environment-aware)
-            pve = await _get_proxmox_service(db, vm_request.environment_id)
-
-            # Resolve template (environment-specific > global > YAML)
-            template_vmid, source_node, is_cloud_init = await _resolve_template(
-                db, vm_request.os_template, vm_request.environment_id
-            )
-
-            # Get node selection strategy
-            all_settings = await get_effective_settings(db)
-            strategy = all_settings.get("NODE_SELECTION_STRATEGY", "least_memory")
-
-            # Step 1: Select target node
-            selector = NodeSelector(pve)
-            target_node = await asyncio.to_thread(selector.select_node, strategy)
-            logger.info(f"Selected node {target_node} for VM {vm_request.vm_name}")
-
-            # Step 2: Get next VMID
-            new_vmid = await asyncio.to_thread(pve.get_next_vmid)
-            logger.info(f"Allocated VMID {new_vmid} for VM {vm_request.vm_name}")
-
-            # Step 3: Clone template
-            upid = await asyncio.to_thread(
-                pve.clone_vm,
-                source_node,
-                template_vmid,
-                new_vmid,
-                vm_request.vm_name,
-                target_node,
-                True,
-            )
-            logger.info(f"Clone task started: {upid}")
-
-            # Step 4: Wait for clone to complete
-            success = await asyncio.to_thread(
-                pve.wait_for_task, source_node, upid, 600
-            )
-            if not success:
-                raise RuntimeError(f"Clone task failed: {upid}")
-            logger.info(f"Clone completed for VMID {new_vmid}")
-
-            # Step 5: Resize VM
-            await asyncio.to_thread(
-                pve.resize_vm,
-                target_node,
-                new_vmid,
-                vm_request.cpu_cores,
-                vm_request.ram_mb,
-                vm_request.disk_gb,
-            )
-            logger.info(
-                f"Resized VMID {new_vmid}: {vm_request.cpu_cores}C / "
-                f"{vm_request.ram_mb}MB / {vm_request.disk_gb}GB"
-            )
-
-            # Step 6: Configure cloud-init (Linux templates only)
-            if is_cloud_init and vm_request.ip_address:
-                await asyncio.to_thread(
-                    pve.configure_cloud_init,
-                    target_node,
-                    new_vmid,
-                    vm_request.ip_address,
-                )
-                logger.info(f"Configured cloud-init for VMID {new_vmid}")
-
-            # Step 7: Start VM
-            start_upid = await asyncio.to_thread(
-                pve.start_vm, target_node, new_vmid
-            )
-            await asyncio.to_thread(
-                pve.wait_for_task, target_node, start_upid, 120
-            )
-            logger.info(f"Started VMID {new_vmid}")
-
-            # Step 8: Update DB with success
-            vm_request.status = RequestStatus.COMPLETED
-            vm_request.proxmox_vmid = new_vmid
-            vm_request.proxmox_node = target_node
-            vm_request.completed_at = datetime.now(timezone.utc)
+            env = await _get_environment(db, vm_request.environment_id)
+            await _provision_single_vm(db, vm_request, env=env)
             await db.commit()
+
             logger.info(
                 f"Provisioning complete for request {request_id}: "
-                f"VMID {new_vmid} on {target_node}"
+                f"VM ID {vm_request.hypervisor_vm_id} on {vm_request.hypervisor_host}"
             )
 
-            # Jira comment: provisioning complete
             await _jira_comment(
                 db, vm_request.jira_issue_key,
                 f"VM provisioned successfully.\n"
-                f"VMID: {new_vmid}\n"
-                f"Node: {target_node}\n"
+                f"VM ID: {vm_request.hypervisor_vm_id or vm_request.proxmox_vmid}\n"
+                f"Host: {vm_request.hypervisor_host or vm_request.proxmox_node}\n"
                 f"IP: {vm_request.ip_address or 'N/A'}"
             )
 
-            # Send "VM ready" email (fire-and-forget)
             from app.services.email import send_vm_ready
             asyncio.create_task(send_vm_ready(request_id))
 
@@ -222,77 +289,13 @@ async def provision_vm(request_id: int) -> None:
                     vm_request.error_message = str(e)[:1000]
                     await error_db.commit()
 
-                    # Jira comment: provisioning failed
                     await _jira_comment(
                         error_db, vm_request.jira_issue_key,
                         f"Provisioning failed: {str(e)[:500]}"
                     )
 
-                    # Send "provisioning failed" email (fire-and-forget)
                     from app.services.email import send_provisioning_failed
                     asyncio.create_task(send_provisioning_failed(request_id))
-
-
-async def _provision_single_vm(db, vm_request: VMRequest, pve: ProxmoxService) -> None:
-    """Provision a single VM. Used by both provision_vm and provision_deployment."""
-    # Resolve template (environment-specific > global > YAML)
-    template_vmid, source_node, is_cloud_init = await _resolve_template(
-        db, vm_request.os_template, vm_request.environment_id
-    )
-
-    # Get node selection strategy
-    all_settings = await get_effective_settings(db)
-    strategy = all_settings.get("NODE_SELECTION_STRATEGY", "least_memory")
-
-    # Select target node
-    selector = NodeSelector(pve)
-    target_node = await asyncio.to_thread(selector.select_node, strategy)
-    logger.info(f"Selected node {target_node} for VM {vm_request.vm_name}")
-
-    # Get next VMID
-    new_vmid = await asyncio.to_thread(pve.get_next_vmid)
-    logger.info(f"Allocated VMID {new_vmid} for VM {vm_request.vm_name}")
-
-    # Clone template
-    upid = await asyncio.to_thread(
-        pve.clone_vm, source_node, template_vmid, new_vmid,
-        vm_request.vm_name, target_node, True,
-    )
-    logger.info(f"Clone task started: {upid}")
-
-    # Wait for clone
-    success = await asyncio.to_thread(pve.wait_for_task, source_node, upid, 600)
-    if not success:
-        raise RuntimeError(f"Clone task failed: {upid}")
-    logger.info(f"Clone completed for VMID {new_vmid}")
-
-    # Resize VM
-    await asyncio.to_thread(
-        pve.resize_vm, target_node, new_vmid,
-        vm_request.cpu_cores, vm_request.ram_mb, vm_request.disk_gb,
-    )
-    logger.info(
-        f"Resized VMID {new_vmid}: {vm_request.cpu_cores}C / "
-        f"{vm_request.ram_mb}MB / {vm_request.disk_gb}GB"
-    )
-
-    # Configure cloud-init
-    if is_cloud_init and vm_request.ip_address:
-        await asyncio.to_thread(
-            pve.configure_cloud_init, target_node, new_vmid, vm_request.ip_address,
-        )
-        logger.info(f"Configured cloud-init for VMID {new_vmid}")
-
-    # Start VM
-    start_upid = await asyncio.to_thread(pve.start_vm, target_node, new_vmid)
-    await asyncio.to_thread(pve.wait_for_task, target_node, start_upid, 120)
-    logger.info(f"Started VMID {new_vmid}")
-
-    # Update DB
-    vm_request.status = RequestStatus.COMPLETED
-    vm_request.proxmox_vmid = new_vmid
-    vm_request.proxmox_node = target_node
-    vm_request.completed_at = datetime.now(timezone.utc)
 
 
 async def provision_deployment(deployment_id: int) -> None:
@@ -313,14 +316,19 @@ async def provision_deployment(deployment_id: int) -> None:
             deployment.status = DeploymentStatus.PROVISIONING
             await db.commit()
 
-            # Initialize Proxmox service once for the deployment
-            pve = await _get_proxmox_service(db, deployment.environment_id)
+            # Resolve environment once for the whole deployment
+            env = await _get_environment(db, deployment.environment_id)
+            env_type = getattr(env, "environment_type", "proxmox") if env else "proxmox"
+
+            # For Proxmox, create service once and reuse
+            pve = None
+            if env_type == "proxmox":
+                pve = await _get_proxmox_service(db, env)
 
             completed = 0
             failed = 0
 
             for vm_req in deployment.vm_requests:
-                # Skip already-completed VMs (important for retry)
                 if vm_req.status == RequestStatus.COMPLETED:
                     completed += 1
                     continue
@@ -330,23 +338,23 @@ async def provision_deployment(deployment_id: int) -> None:
                     vm_req.error_message = None
                     await db.commit()
 
-                    # Jira comment per VM
                     await _jira_comment(
                         db, deployment.jira_issue_key,
                         f"Provisioning VM '{vm_req.vm_name}'...",
                     )
 
-                    await _provision_single_vm(db, vm_req, pve)
+                    await _provision_single_vm(db, vm_req, env=env, pve=pve)
                     await db.commit()
                     completed += 1
 
+                    vm_id = vm_req.hypervisor_vm_id or vm_req.proxmox_vmid
+                    host = vm_req.hypervisor_host or vm_req.proxmox_node
                     await _jira_comment(
                         db, deployment.jira_issue_key,
-                        f"VM '{vm_req.vm_name}' provisioned: VMID {vm_req.proxmox_vmid} "
-                        f"on {vm_req.proxmox_node}, IP: {vm_req.ip_address or 'N/A'}",
+                        f"VM '{vm_req.vm_name}' provisioned: ID {vm_id} "
+                        f"on {host}, IP: {vm_req.ip_address or 'N/A'}",
                     )
 
-                    # Send "VM ready" email per VM
                     from app.services.email import send_vm_ready
                     asyncio.create_task(send_vm_ready(vm_req.id))
 
@@ -380,7 +388,6 @@ async def provision_deployment(deployment_id: int) -> None:
 
             await db.commit()
 
-            # Final Jira summary comment
             await _jira_comment(
                 db, deployment.jira_issue_key,
                 f"Deployment complete: {completed}/{total} VMs provisioned successfully"

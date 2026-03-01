@@ -186,8 +186,9 @@ export async function deleteTemplateMapping(id: number): Promise<void> {
 }
 
 // Environment management API
-export async function getEnvironments(): Promise<PVEEnvironmentListItem[]> {
-  const { data } = await api.get<PVEEnvironmentListItem[]>('/environments')
+export async function getEnvironments(locationId?: number): Promise<PVEEnvironmentListItem[]> {
+  const params = locationId ? { location_id: locationId } : {}
+  const { data } = await api.get<PVEEnvironmentListItem[]>('/environments', { params })
   return data
 }
 

@@ -1,18 +1,19 @@
 import asyncio
 import logging
+from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import AuthenticatedUser, get_current_user, require_admin
 from app.database import get_db
-from app.models.pve_environment import PVEEnvironment
-from app.schemas.pve_environment import (
-    PVEEnvironmentCreate,
-    PVEEnvironmentListItem,
-    PVEEnvironmentResponse,
-    PVEEnvironmentUpdate,
+from app.models.environment import Environment
+from app.schemas.environment import (
+    EnvironmentCreate,
+    EnvironmentListItem,
+    EnvironmentResponse,
+    EnvironmentUpdate,
 )
 from app.schemas.setting import ConnectionTestResult
 
@@ -21,41 +22,45 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/environments", tags=["environments"])
 
 
-@router.get("", response_model=list[PVEEnvironmentListItem])
+@router.get("", response_model=list[EnvironmentListItem])
 async def list_environments(
+    location_id: Optional[int] = Query(None, description="Filter by phpIPAM location ID"),
     user: AuthenticatedUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """List enabled environments for the request form dropdown."""
-    result = await db.execute(
-        select(PVEEnvironment)
-        .where(PVEEnvironment.enabled == True)
-        .order_by(PVEEnvironment.display_name)
+    query = (
+        select(Environment)
+        .where(Environment.enabled == True)
+        .order_by(Environment.display_name)
     )
+    if location_id is not None:
+        query = query.where(Environment.location_id == location_id)
+    result = await db.execute(query)
     return result.scalars().all()
 
 
-@router.get("/all", response_model=list[PVEEnvironmentResponse])
+@router.get("/all", response_model=list[EnvironmentResponse])
 async def list_all_environments(
     user: AuthenticatedUser = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """List all environments including disabled (admin management)."""
     result = await db.execute(
-        select(PVEEnvironment).order_by(PVEEnvironment.display_name)
+        select(Environment).order_by(Environment.display_name)
     )
     return result.scalars().all()
 
 
-@router.post("", response_model=PVEEnvironmentResponse, status_code=201)
+@router.post("", response_model=EnvironmentResponse, status_code=201)
 async def create_environment(
-    payload: PVEEnvironmentCreate,
+    payload: EnvironmentCreate,
     user: AuthenticatedUser = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    """Create a new PVE environment."""
+    """Create a new environment."""
     existing = await db.execute(
-        select(PVEEnvironment).where(PVEEnvironment.name == payload.name)
+        select(Environment).where(Environment.name == payload.name)
     )
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=409, detail=f"Environment '{payload.name}' already exists")
@@ -64,23 +69,23 @@ async def create_environment(
     if payload.is_default:
         await _clear_default(db)
 
-    env = PVEEnvironment(**payload.model_dump())
+    env = Environment(**payload.model_dump())
     db.add(env)
     await db.commit()
     await db.refresh(env)
     return env
 
 
-@router.put("/{env_id}", response_model=PVEEnvironmentResponse)
+@router.put("/{env_id}", response_model=EnvironmentResponse)
 async def update_environment(
     env_id: int,
-    payload: PVEEnvironmentUpdate,
+    payload: EnvironmentUpdate,
     user: AuthenticatedUser = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    """Update an existing PVE environment."""
+    """Update an existing environment."""
     result = await db.execute(
-        select(PVEEnvironment).where(PVEEnvironment.id == env_id)
+        select(Environment).where(Environment.id == env_id)
     )
     env = result.scalar_one_or_none()
     if not env:
@@ -106,9 +111,9 @@ async def delete_environment(
     user: AuthenticatedUser = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    """Delete a PVE environment."""
+    """Delete an environment."""
     result = await db.execute(
-        select(PVEEnvironment).where(PVEEnvironment.id == env_id)
+        select(Environment).where(Environment.id == env_id)
     )
     env = result.scalar_one_or_none()
     if not env:
@@ -135,30 +140,53 @@ async def test_environment_connection(
     user: AuthenticatedUser = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    """Test Proxmox connectivity for a specific environment."""
+    """Test connectivity for a specific environment."""
     result = await db.execute(
-        select(PVEEnvironment).where(PVEEnvironment.id == env_id)
+        select(Environment).where(Environment.id == env_id)
     )
     env = result.scalar_one_or_none()
     if not env:
         raise HTTPException(status_code=404, detail="Environment not found")
 
     try:
-        from app.services.proxmox import ProxmoxService
+        if env.environment_type == "proxmox":
+            from app.services.proxmox import ProxmoxService
 
-        pve = ProxmoxService(
-            host=env.pve_host,
-            user=env.pve_user,
-            token_name=env.pve_token_name,
-            token_value=env.pve_token_value,
-            verify_ssl=env.pve_verify_ssl,
-        )
-        version = await asyncio.to_thread(pve.get_version)
-        return ConnectionTestResult(
-            success=True,
-            message=f"Connected to Proxmox VE {version.get('version', 'unknown')} "
-                    f"(release {version.get('release', 'unknown')})",
-        )
+            pve = ProxmoxService(
+                host=env.pve_host,
+                user=env.pve_user,
+                token_name=env.pve_token_name,
+                token_value=env.pve_token_value,
+                verify_ssl=env.pve_verify_ssl,
+            )
+            version = await asyncio.to_thread(pve.get_version)
+            return ConnectionTestResult(
+                success=True,
+                message=f"Connected to Proxmox VE {version.get('version', 'unknown')} "
+                        f"(release {version.get('release', 'unknown')})",
+            )
+        elif env.environment_type in ("esxi", "vcenter"):
+            from app.services.vsphere import VSphereService
+
+            vs = VSphereService(
+                host=env.vsphere_host,
+                user=env.vsphere_user,
+                password=env.vsphere_password,
+                port=env.vsphere_port,
+                verify_ssl=env.vsphere_verify_ssl,
+                datacenter=env.vsphere_datacenter,
+                cluster=env.vsphere_cluster,
+            )
+            version = await asyncio.to_thread(vs.get_version)
+            await asyncio.to_thread(vs.disconnect)
+            label = "vCenter" if env.environment_type == "vcenter" else "ESXi"
+            return ConnectionTestResult(
+                success=True,
+                message=f"Connected to {label} {version.get('version', 'unknown')} "
+                        f"(build {version.get('build', 'unknown')})",
+            )
+        else:
+            return ConnectionTestResult(success=False, message=f"Unknown environment type: {env.environment_type}")
     except Exception as e:
         return ConnectionTestResult(success=False, message=str(e))
 
@@ -166,7 +194,7 @@ async def test_environment_connection(
 async def _clear_default(db: AsyncSession) -> None:
     """Unset is_default on all environments."""
     result = await db.execute(
-        select(PVEEnvironment).where(PVEEnvironment.is_default == True)
+        select(Environment).where(Environment.is_default == True)
     )
     for env in result.scalars().all():
         env.is_default = False

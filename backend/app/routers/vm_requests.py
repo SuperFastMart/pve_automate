@@ -45,7 +45,7 @@ async def create_vm_request(
     # Resolve environment (if specified)
     environment_name = None
     if payload.environment_id:
-        from app.models.pve_environment import PVEEnvironment
+        from app.models.environment import Environment as PVEEnvironment
         env_result = await db.execute(
             select(PVEEnvironment).where(PVEEnvironment.id == payload.environment_id)
         )

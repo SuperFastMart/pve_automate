@@ -18,8 +18,9 @@ class OSTemplateMapping(Base):
     id = Column(Integer, primary_key=True, index=True)
     key = Column(String(50), nullable=False, index=True)
     display_name = Column(String(200), nullable=False)
-    vmid = Column(Integer, nullable=False)
-    node = Column(String(100), nullable=False)
+    vmid = Column(Integer, nullable=True)       # Proxmox template VMID
+    node = Column(String(100), nullable=True)    # Proxmox source node
+    template_ref = Column(String(500), nullable=True)  # vSphere template name/path
     os_family = Column(String(20), nullable=False)  # "linux" or "windows"
     cloud_init = Column(Boolean, default=True, nullable=False)
     enabled = Column(Boolean, default=True, nullable=False)

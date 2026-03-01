@@ -121,8 +121,8 @@ export default function DeploymentDetail() {
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">OS</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Size</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">VMID</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Node</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">VM ID</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Host</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">IP</th>
             </tr>
           </thead>
@@ -145,8 +145,8 @@ export default function DeploymentDetail() {
                 <td className="px-4 py-3">
                   <StatusBadge status={vm.status} />
                 </td>
-                <td className="px-4 py-3 text-sm text-gray-500">{vm.proxmox_vmid ?? '-'}</td>
-                <td className="px-4 py-3 text-sm text-gray-500">{vm.proxmox_node ?? '-'}</td>
+                <td className="px-4 py-3 text-sm text-gray-500">{vm.hypervisor_vm_id ?? vm.proxmox_vmid ?? '-'}</td>
+                <td className="px-4 py-3 text-sm text-gray-500">{vm.hypervisor_host ?? vm.proxmox_node ?? '-'}</td>
                 <td className="px-4 py-3 text-sm text-gray-500 font-mono">{vm.ip_address ?? '-'}</td>
               </tr>
             ))}

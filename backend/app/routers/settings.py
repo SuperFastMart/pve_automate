@@ -87,43 +87,31 @@ async def list_all_settings(db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/templates/scan", response_model=list[PVETemplateResponse])
-async def scan_proxmox_templates(
+async def scan_templates(
     environment_id: int | None = None,
     db: AsyncSession = Depends(get_db),
 ):
-    """Query Proxmox for all template VMs across all nodes.
+    """Scan hypervisor environments for template VMs.
 
+    Dispatches to Proxmox or vSphere depending on environment type.
     If environment_id is given, scan only that environment.
     If omitted, scan ALL enabled environments.
     """
     try:
-        from app.models.pve_environment import PVEEnvironment
-        from app.services.proxmox import ProxmoxService
+        from app.models.environment import Environment
 
         if environment_id:
-            # Scan a single environment
             result = await db.execute(
-                select(PVEEnvironment).where(PVEEnvironment.id == environment_id)
+                select(Environment).where(Environment.id == environment_id)
             )
             env = result.scalar_one_or_none()
             if not env:
                 raise HTTPException(status_code=404, detail="Environment not found")
-            pve = ProxmoxService(
-                host=env.pve_host,
-                user=env.pve_user,
-                token_name=env.pve_token_name,
-                token_value=env.pve_token_value,
-                verify_ssl=env.pve_verify_ssl,
-            )
-            templates = await asyncio.to_thread(pve.get_templates)
-            for t in templates:
-                t["environment_id"] = env.id
-                t["environment_name"] = env.display_name
+            templates = await _scan_single_env(env)
             return templates
         else:
-            # Scan ALL enabled environments
             result = await db.execute(
-                select(PVEEnvironment).where(PVEEnvironment.enabled == True)
+                select(Environment).where(Environment.enabled == True)
             )
             environments = result.scalars().all()
             if not environments:
@@ -136,17 +124,7 @@ async def scan_proxmox_templates(
             errors = []
             for env in environments:
                 try:
-                    pve = ProxmoxService(
-                        host=env.pve_host,
-                        user=env.pve_user,
-                        token_name=env.pve_token_name,
-                        token_value=env.pve_token_value,
-                        verify_ssl=env.pve_verify_ssl,
-                    )
-                    templates = await asyncio.to_thread(pve.get_templates)
-                    for t in templates:
-                        t["environment_id"] = env.id
-                        t["environment_name"] = env.display_name
+                    templates = await _scan_single_env(env)
                     all_templates.extend(templates)
                 except Exception as e:
                     errors.append(f"{env.display_name}: {e}")
@@ -161,6 +139,42 @@ async def scan_proxmox_templates(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+async def _scan_single_env(env) -> list[dict]:
+    """Scan a single environment for templates, dispatching by type."""
+    if env.environment_type == "proxmox":
+        from app.services.proxmox import ProxmoxService
+
+        pve = ProxmoxService(
+            host=env.pve_host,
+            user=env.pve_user,
+            token_name=env.pve_token_name,
+            token_value=env.pve_token_value,
+            verify_ssl=env.pve_verify_ssl,
+        )
+        templates = await asyncio.to_thread(pve.get_templates)
+    elif env.environment_type in ("esxi", "vcenter"):
+        from app.services.vsphere import VSphereService
+
+        vs = VSphereService(
+            host=env.vsphere_host,
+            user=env.vsphere_user,
+            password=env.vsphere_password,
+            port=env.vsphere_port,
+            verify_ssl=env.vsphere_verify_ssl,
+            datacenter=env.vsphere_datacenter,
+            cluster=env.vsphere_cluster,
+        )
+        templates = await asyncio.to_thread(vs.get_templates)
+        await asyncio.to_thread(vs.disconnect)
+    else:
+        raise ValueError(f"Unknown environment type: {env.environment_type}")
+
+    for t in templates:
+        t["environment_id"] = env.id
+        t["environment_name"] = env.display_name
+    return templates
 
 
 @router.get("/templates", response_model=list[OSTemplateMappingResponse])

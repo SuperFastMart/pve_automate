@@ -5,22 +5,24 @@ from pydantic import BaseModel, Field
 
 
 class PVETemplateResponse(BaseModel):
-    """A template VM discovered from Proxmox."""
-    vmid: int
+    """A template VM discovered from a hypervisor (Proxmox or vSphere)."""
+    vmid: Optional[int] = None
     name: str
-    node: str
+    node: Optional[str] = None
     status: str
     disk_size: int
     memory: int
     environment_id: Optional[int] = None
     environment_name: Optional[str] = None
+    template_ref: Optional[str] = None  # vSphere template path/name
 
 
 class OSTemplateMappingCreate(BaseModel):
     key: str = Field(..., min_length=1, max_length=50, pattern=r"^[a-z0-9][a-z0-9\-]*$")
     display_name: str = Field(..., min_length=1, max_length=200)
-    vmid: int
-    node: str
+    vmid: Optional[int] = None
+    node: Optional[str] = None
+    template_ref: Optional[str] = None
     os_family: str = Field(..., pattern=r"^(linux|windows)$")
     cloud_init: bool = True
     enabled: bool = True
@@ -42,8 +44,9 @@ class OSTemplateMappingResponse(BaseModel):
     id: int
     key: str
     display_name: str
-    vmid: int
-    node: str
+    vmid: Optional[int] = None
+    node: Optional[str] = None
+    template_ref: Optional[str] = None
     os_family: str
     cloud_init: bool
     enabled: bool

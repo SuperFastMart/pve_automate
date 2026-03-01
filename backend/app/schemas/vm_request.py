@@ -58,6 +58,8 @@ class VMRequestResponse(BaseModel):
     jira_issue_url: Optional[str]
     proxmox_vmid: Optional[int]
     proxmox_node: Optional[str]
+    hypervisor_vm_id: Optional[str] = None
+    hypervisor_host: Optional[str] = None
     ip_address: Optional[str]
     subnet_id: Optional[int]
     phpipam_address_id: Optional[int]

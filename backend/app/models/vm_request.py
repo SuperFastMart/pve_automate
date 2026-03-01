@@ -49,6 +49,8 @@ class VMRequest(Base):
     jira_issue_url = Column(String(500), nullable=True)
     proxmox_vmid = Column(Integer, nullable=True)
     proxmox_node = Column(String(100), nullable=True)
+    hypervisor_vm_id = Column(String(200), nullable=True)  # Generic: VMID (PVE) or MoRef (vSphere)
+    hypervisor_host = Column(String(200), nullable=True)   # Generic: node (PVE) or ESXi host (vSphere)
     ip_address = Column(String(45), nullable=True)
     vlan_id = Column(Integer, nullable=True)
     subnet_id = Column(Integer, nullable=True)

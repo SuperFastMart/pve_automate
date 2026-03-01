@@ -23,6 +23,8 @@ export interface VMRequest {
   jira_issue_url: string | null
   proxmox_vmid: number | null
   proxmox_node: string | null
+  hypervisor_vm_id: string | null
+  hypervisor_host: string | null
   ip_address: string | null
   environment_id: number | null
   environment_name: string | null
@@ -81,15 +83,26 @@ export interface DeploymentList {
   total: number
 }
 
+export type EnvironmentType = 'proxmox' | 'esxi' | 'vcenter'
+
 export interface PVEEnvironment {
   id: number
   name: string
   display_name: string
   description: string | null
-  pve_host: string
-  pve_user: string
-  pve_token_name: string
+  environment_type: EnvironmentType
+  location_id: number | null
+  location_name: string | null
+  pve_host: string | null
+  pve_user: string | null
+  pve_token_name: string | null
   pve_verify_ssl: boolean
+  vsphere_host: string | null
+  vsphere_user: string | null
+  vsphere_port: number
+  vsphere_verify_ssl: boolean
+  vsphere_datacenter: string | null
+  vsphere_cluster: string | null
   enabled: boolean
   is_default: boolean
   created_at: string
@@ -101,6 +114,9 @@ export interface PVEEnvironmentListItem {
   name: string
   display_name: string
   description: string | null
+  environment_type: EnvironmentType
+  location_id: number | null
+  location_name: string | null
   is_default: boolean
 }
 
@@ -130,22 +146,24 @@ export interface OSTemplate {
 export type OSTemplates = Record<string, OSTemplate>
 
 export interface PVETemplate {
-  vmid: number
+  vmid: number | null
   name: string
-  node: string
+  node: string | null
   status: string
   disk_size: number
   memory: number
   environment_id?: number | null
   environment_name?: string | null
+  template_ref?: string | null
 }
 
 export interface OSTemplateMapping {
   id: number
   key: string
   display_name: string
-  vmid: number
-  node: string
+  vmid: number | null
+  node: string | null
+  template_ref: string | null
   os_family: 'linux' | 'windows'
   cloud_init: boolean
   enabled: boolean

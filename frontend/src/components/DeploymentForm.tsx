@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useCreateDeployment } from '../hooks/useDeployments'
 import { useOSTemplates, useWorkloadTypes, useTShirtSizes } from '../hooks/useVMRequests'
-import { getSubnets, getEnvironments } from '../api/client'
+import { getSubnets, getLocations, getEnvironments } from '../api/client'
 import type { DeploymentVMPayload } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
 
@@ -36,31 +36,59 @@ export default function DeploymentForm() {
   const { data: workloadTypes, isLoading: workloadsLoading } = useWorkloadTypes()
   const { data: sizes, isLoading: sizesLoading } = useTShirtSizes()
   const { data: subnets } = useQuery({ queryKey: ['subnets'], queryFn: getSubnets })
+  const { data: locations } = useQuery({ queryKey: ['locations'], queryFn: getLocations })
   const { data: environments } = useQuery({ queryKey: ['environments'], queryFn: getEnvironments })
 
   // Top-level fields
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [workloadType, setWorkloadType] = useState('')
+  const [selectedLocation, setSelectedLocation] = useState('')
   const [selectedEnvironment, setSelectedEnvironment] = useState('')
   const environmentId = selectedEnvironment ? Number(selectedEnvironment) : undefined
   const { data: templates, isLoading: templatesLoading } = useOSTemplates(environmentId)
+
+  // Filter environments and subnets by location
+  const filteredEnvironments = environments?.filter((e) => {
+    if (!selectedLocation) return true
+    return e.location_id !== null && String(e.location_id) === selectedLocation
+  })
+
+  const filteredSubnets = subnets?.filter((s) => {
+    if (!selectedLocation) return true
+    return s.locationId !== null && String(s.locationId) === selectedLocation
+  })
 
   // VM list
   const [vms, setVms] = useState<VMEntry[]>([{ ...emptyVM }])
   const [errors, setErrors] = useState<string[]>([])
 
-  // Auto-select default environment
+  // When location changes, reset environment if it no longer matches
   useEffect(() => {
-    if (environments && environments.length > 0 && !selectedEnvironment) {
-      const defaultEnv = environments.find((e) => e.is_default)
+    if (!selectedLocation || !filteredEnvironments) return
+    const currentStillValid = filteredEnvironments.some((e) => String(e.id) === selectedEnvironment)
+    if (!currentStillValid) {
+      if (filteredEnvironments.length === 1) {
+        setSelectedEnvironment(String(filteredEnvironments[0].id))
+      } else {
+        setSelectedEnvironment('')
+      }
+      setVms(vms.map((vm) => ({ ...vm, os_template: '', subnet_id: '' })))
+    }
+  }, [selectedLocation]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-select default environment from filtered list
+  useEffect(() => {
+    const envs = filteredEnvironments
+    if (envs && envs.length > 0 && !selectedEnvironment) {
+      const defaultEnv = envs.find((e) => e.is_default)
       if (defaultEnv) {
         setSelectedEnvironment(String(defaultEnv.id))
-      } else if (environments.length === 1) {
-        setSelectedEnvironment(String(environments[0].id))
+      } else if (envs.length === 1) {
+        setSelectedEnvironment(String(envs[0].id))
       }
     }
-  }, [environments, selectedEnvironment])
+  }, [filteredEnvironments, selectedEnvironment])
 
   const addVM = () => {
     if (vms.length < 20) {
@@ -183,7 +211,28 @@ export default function DeploymentForm() {
             </div>
           </div>
 
-          {environments && environments.length > 0 && (
+          {locations && locations.length > 1 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Preferred Location</label>
+              <select
+                value={selectedLocation}
+                onChange={(e) => setSelectedLocation(e.target.value)}
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+              >
+                <option value="">All locations</option>
+                {locations.map((loc) => (
+                  <option key={loc.id} value={loc.id}>
+                    {loc.name}{loc.description ? ` — ${loc.description}` : ''}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-gray-400">
+                Filters available environments and subnets to this location
+              </p>
+            </div>
+          )}
+
+          {filteredEnvironments && filteredEnvironments.length > 0 && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Environment</label>
               <select
@@ -194,8 +243,8 @@ export default function DeploymentForm() {
                 }}
                 className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
               >
-                {environments.length > 1 && <option value="">Select environment...</option>}
-                {environments.map((env) => (
+                {filteredEnvironments.length > 1 && <option value="">Select environment...</option>}
+                {filteredEnvironments.map((env) => (
                   <option key={env.id} value={env.id}>
                     {env.display_name}{env.description ? ` — ${env.description}` : ''}
                   </option>
@@ -289,7 +338,7 @@ export default function DeploymentForm() {
                   </select>
                 </div>
 
-                {subnets && subnets.length > 0 && (
+                {filteredSubnets && filteredSubnets.length > 0 && (
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Subnet</label>
                     <select
@@ -298,7 +347,7 @@ export default function DeploymentForm() {
                       className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:ring-indigo-500"
                     >
                       <option value="">No subnet</option>
-                      {subnets.map((s) => (
+                      {filteredSubnets.map((s) => (
                         <option key={s.id} value={s.id}>
                           {s.description ? `${s.description} (${s.subnet}/${s.mask})` : `${s.subnet}/${s.mask}`}
                         </option>
