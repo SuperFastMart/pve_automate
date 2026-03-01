@@ -19,8 +19,9 @@ function formatBytes(bytes: number): string {
 }
 
 interface AddFormState {
-  vmid: number
+  vmid: number | null
   node: string
+  template_ref: string
   pve_name: string
   key: string
   display_name: string
@@ -45,7 +46,8 @@ export default function AdminTemplates() {
     const suggestedKey = tmpl.name.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-')
     setAddForm({
       vmid: tmpl.vmid,
-      node: tmpl.node,
+      node: tmpl.node ?? '',
+      template_ref: tmpl.template_ref ?? '',
       pve_name: tmpl.name,
       key: suggestedKey,
       display_name: tmpl.name,
@@ -57,8 +59,9 @@ export default function AdminTemplates() {
 
   const handleAddManual = () => {
     setAddForm({
-      vmid: 0,
+      vmid: null,
       node: '',
+      template_ref: '',
       pve_name: '',
       key: '',
       display_name: '',
@@ -74,8 +77,9 @@ export default function AdminTemplates() {
       {
         key: addForm.key,
         display_name: addForm.display_name,
-        vmid: addForm.vmid,
-        node: addForm.node,
+        vmid: addForm.vmid || null,
+        node: addForm.node || null,
+        template_ref: addForm.template_ref || null,
         os_family: addForm.os_family,
         cloud_init: addForm.cloud_init,
         enabled: true,
@@ -292,7 +296,7 @@ export default function AdminTemplates() {
           <div className="flex gap-2 mt-4">
             <button
               onClick={handleSubmitAdd}
-              disabled={!addForm.key || !addForm.display_name || !addForm.vmid || !addForm.node || createMapping.isPending}
+              disabled={!addForm.key || !addForm.display_name || (!addForm.vmid && !addForm.template_ref) || createMapping.isPending}
               className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:opacity-50"
             >
               {createMapping.isPending ? 'Saving...' : 'Save Mapping'}
@@ -349,8 +353,8 @@ export default function AdminTemplates() {
                 <tr key={m.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 text-sm font-mono text-gray-700">{m.key}</td>
                   <td className="px-4 py-3 text-sm text-gray-900">{m.display_name}</td>
-                  <td className="px-4 py-3 text-sm text-gray-500">{m.vmid}</td>
-                  <td className="px-4 py-3 text-sm text-gray-500">{m.node}</td>
+                  <td className="px-4 py-3 text-sm text-gray-500">{m.vmid ?? m.template_ref ?? '-'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-500">{m.node ?? '-'}</td>
                   {!selectedEnvId && (
                     <td className="px-4 py-3">
                       {m.environment_id ? (

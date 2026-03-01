@@ -34,7 +34,7 @@ export default function VMRequestForm() {
   const { data: workloadTypes, isLoading: workloadsLoading } = useWorkloadTypes()
   const { data: subnets } = useQuery({ queryKey: ['subnets'], queryFn: getSubnets })
   const { data: locations } = useQuery({ queryKey: ['locations'], queryFn: getLocations })
-  const { data: environments } = useQuery({ queryKey: ['environments'], queryFn: getEnvironments })
+  const { data: environments } = useQuery({ queryKey: ['environments'], queryFn: () => getEnvironments() })
   const [selectedEnvironment, setSelectedEnvironment] = useState<string>('')
   const environmentId = selectedEnvironment ? Number(selectedEnvironment) : undefined
   const { data: templates, isLoading: templatesLoading } = useOSTemplates(environmentId)

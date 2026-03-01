@@ -37,7 +37,7 @@ export default function DeploymentForm() {
   const { data: sizes, isLoading: sizesLoading } = useTShirtSizes()
   const { data: subnets } = useQuery({ queryKey: ['subnets'], queryFn: getSubnets })
   const { data: locations } = useQuery({ queryKey: ['locations'], queryFn: getLocations })
-  const { data: environments } = useQuery({ queryKey: ['environments'], queryFn: getEnvironments })
+  const { data: environments } = useQuery({ queryKey: ['environments'], queryFn: () => getEnvironments() })
 
   // Top-level fields
   const [name, setName] = useState('')

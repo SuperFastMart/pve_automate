@@ -11,7 +11,7 @@ import {
 export function useEnvironments() {
   return useQuery({
     queryKey: ['environments'],
-    queryFn: getEnvironments,
+    queryFn: () => getEnvironments(),
   })
 }
 
