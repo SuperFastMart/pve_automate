@@ -15,12 +15,12 @@ export default function NewDecomRequest() {
 
   // Fetch completed VMs/CTs (large page to get all)
   const { data: vmData } = useQuery({
-    queryKey: ['vm-requests', 1, 200],
-    queryFn: () => getVMRequests(1, 200),
+    queryKey: ['vm-requests', 1, 100],
+    queryFn: () => getVMRequests(1, 100),
   })
   const { data: depData } = useQuery({
-    queryKey: ['deployments', 1, 200],
-    queryFn: () => getDeployments(1, 200),
+    queryKey: ['deployments', 1, 100],
+    queryFn: () => getDeployments(1, 100),
   })
 
   // Filter to only completed/failed resources (decomm-able)
