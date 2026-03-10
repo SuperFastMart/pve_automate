@@ -296,7 +296,7 @@ class ProxmoxService:
             output = stdout.read().decode().strip()
             err_output = stderr.read().decode().strip()
             if exit_code != 0:
-                logger.warning(f"Command on {node} returned {exit_code}: {err_output}")
+                raise RuntimeError(f"Command on {node} returned exit code {exit_code}: {err_output}")
             return output
         finally:
             client.close()
@@ -304,27 +304,15 @@ class ProxmoxService:
     def configure_lxc_ssh_root(self, node: str, vmid: int) -> None:
         """Enable root SSH login inside a running LXC container.
 
-        Uses the Proxmox host API to run 'pct exec' commands on the node.
-        The API token must have Sys.Console or root-equivalent permissions.
+        SSHes to the Proxmox node, then uses 'pct exec' to modify sshd_config
+        inside the container and restart the SSH service.
         """
-        # Proxmox API: POST /nodes/{node}/exec — runs a command on the host
-        # We use this to call 'pct exec' which runs inside the container.
-        script = (
-            f"pct exec {vmid} -- sed -i 's/^#*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config && "
-            f"pct exec {vmid} -- sh -c 'systemctl restart sshd 2>/dev/null || service ssh restart'"
-        )
+        # Step 1: Uncomment and set PermitRootLogin yes
+        sed_cmd = f"pct exec {vmid} -- sed -i 's/^#*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config"
+        self.exec_on_node(node, sed_cmd)
 
-        # Method 1: Try via Proxmox API node exec (PVE 8.4+)
-        try:
-            self.proxmox.nodes(node).execute.post(command="bash", **{"input-data": script})
-            logger.info(f"Configured SSH root login for LXC {vmid} on {node} via API node exec")
-            return
-        except Exception as e:
-            logger.info(f"API node exec not available for {node}: {e}, trying SSH fallback")
+        # Step 2: Restart sshd inside the container
+        restart_cmd = f"pct exec {vmid} -- systemctl restart sshd 2>/dev/null || pct exec {vmid} -- service ssh restart"
+        self.exec_on_node(node, restart_cmd)
 
-        # Method 2: SSH to node
-        try:
-            self.exec_on_node(node, f"bash -c '{script}'")
-            logger.info(f"Configured SSH root login for LXC {vmid} on {node} via SSH")
-        except Exception as e:
-            logger.warning(f"Failed to configure SSH root for LXC {vmid}: {e}")
+        logger.info(f"Configured SSH root login for LXC {vmid} on {node}")
