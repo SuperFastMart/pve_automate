@@ -1,4 +1,5 @@
 import logging
+import pathlib
 import time
 
 from proxmoxer import ProxmoxAPI
@@ -289,8 +290,14 @@ class ProxmoxService:
         client = paramiko.SSHClient()
         client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         try:
-            # Try key-based auth (agent or default keys)
-            client.connect(node_ip, username="root", timeout=timeout)
+            # Explicitly locate the SSH key — systemd services may not have HOME set
+            key_path = pathlib.Path("/root/.ssh/id_ed25519")
+            if not key_path.exists():
+                key_path = pathlib.Path("/root/.ssh/id_rsa")
+            client.connect(
+                node_ip, username="root", timeout=timeout,
+                key_filename=str(key_path) if key_path.exists() else None,
+            )
             _, stdout, stderr = client.exec_command(command, timeout=timeout)
             exit_code = stdout.channel.recv_exit_status()
             output = stdout.read().decode().strip()
