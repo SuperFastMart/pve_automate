@@ -225,11 +225,9 @@ async def _provision_proxmox_lxc(db, vm_request: VMRequest, pve: ProxmoxService)
 
     # Post-creation: enable root SSH login if requested
     if vm_request.enable_ssh_root:
-        try:
-            await asyncio.sleep(5)
-            await asyncio.to_thread(pve.configure_lxc_ssh_root, target_node, new_vmid)
-        except Exception as e:
-            logger.warning(f"Failed to configure SSH root for LXC {new_vmid}: {e}")
+        logger.info(f"Configuring SSH root login for LXC {new_vmid}...")
+        await asyncio.sleep(8)  # Wait for sshd to be fully up inside the container
+        await asyncio.to_thread(pve.configure_lxc_ssh_root, target_node, new_vmid)
 
     # Update DB
     vm_request.status = RequestStatus.COMPLETED
