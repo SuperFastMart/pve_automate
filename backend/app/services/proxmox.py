@@ -315,6 +315,30 @@ class ProxmoxService:
         finally:
             client.close()
 
+    def stop_vm(self, node: str, vmid: int) -> str:
+        """Stop a VM. Returns UPID."""
+        return self.proxmox.nodes(node).qemu(vmid).status.stop.post()
+
+    def destroy_vm(self, node: str, vmid: int, purge: bool = True) -> str:
+        """Destroy (delete) a VM. Returns UPID. purge=True also removes disks/snapshots."""
+        params = {}
+        if purge:
+            params["purge"] = 1
+            params["destroy-unreferenced-disks"] = 1
+        return self.proxmox.nodes(node).qemu(vmid).delete(**params)
+
+    def stop_lxc(self, node: str, vmid: int) -> str:
+        """Stop an LXC container. Returns UPID."""
+        return self.proxmox.nodes(node).lxc(vmid).status.stop.post()
+
+    def destroy_lxc(self, node: str, vmid: int, purge: bool = True) -> str:
+        """Destroy (delete) an LXC container. Returns UPID."""
+        params = {}
+        if purge:
+            params["purge"] = 1
+            params["destroy-unreferenced-disks"] = 1
+        return self.proxmox.nodes(node).lxc(vmid).delete(**params)
+
     def configure_lxc_ssh_root(self, node: str, vmid: int) -> None:
         """Enable root SSH login inside a running LXC container.
 

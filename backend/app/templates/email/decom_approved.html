@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Decom Request Approved{% endblock %}
+{% block content %}
+<h2 style="margin:0 0 16px 0; color:#1e293b; font-size:18px;">Decom Request Approved</h2>
+<p style="margin:0 0 16px 0; color:#334155; font-size:14px; line-height:1.6;">
+  Hi {{ decom.requestor_name }},
+</p>
+<p style="margin:0 0 24px 0; color:#334155; font-size:14px; line-height:1.6;">
+  Your decommission request for <strong>{{ resource_name }}</strong> has been approved.
+  The infrastructure team will proceed with the teardown.
+</p>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f0fdf4; border-radius:6px; border:1px solid #bbf7d0; margin-bottom:24px;">
+  <tr>
+    <td style="padding:16px;">
+      <table role="presentation" width="100%" cellpadding="4" cellspacing="0">
+        <tr>
+          <td style="color:#64748b; font-size:13px; width:140px; vertical-align:top;">Resource</td>
+          <td style="color:#1e293b; font-size:13px; font-weight:600;">{{ resource_name }}</td>
+        </tr>
+        <tr>
+          <td style="color:#64748b; font-size:13px; vertical-align:top;">Reason</td>
+          <td style="color:#1e293b; font-size:13px;">{{ decom.reason }}</td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+
+<p style="margin:16px 0 0 0; color:#64748b; font-size:13px;">
+  You will be notified once the decommissioning is complete.
+</p>
+{% endblock %}

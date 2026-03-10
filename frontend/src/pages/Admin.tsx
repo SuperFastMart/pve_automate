@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useVMRequests, useApproveVMRequest, useRejectVMRequest, useRetryVMRequest, useDeleteVMRequest } from '../hooks/useVMRequests'
 import { useDeployments, useApproveDeployment, useRejectDeployment, useRetryDeployment, useDeleteDeployment } from '../hooks/useDeployments'
+import { useDecomRequests, useApproveDecomRequest, useRejectDecomRequest, useStartDecomRequest, useCompleteDecomRequest, useDeleteDecomRequest } from '../hooks/useDecomRequests'
 import StatusBadge from '../components/StatusBadge'
 import AdminSettings from '../components/AdminSettings'
 import AdminTemplates from '../components/AdminTemplates'
@@ -39,7 +40,7 @@ const deploymentStatusLabels: Record<DeploymentStatus, string> = {
 }
 
 type AdminTab = 'requests' | 'settings' | 'templates' | 'environments'
-type RequestsView = 'individual' | 'deployments'
+type RequestsView = 'individual' | 'deployments' | 'decom'
 
 export default function Admin() {
   const [activeTab, setActiveTab] = useState<AdminTab>('requests')
@@ -58,6 +59,14 @@ export default function Admin() {
   const retryDeployment = useRetryDeployment()
   const deleteDeploymentMutation = useDeleteDeployment()
   const [confirmDeleteDepId, setConfirmDeleteDepId] = useState<number | null>(null)
+
+  const { data: decomData, isLoading: decomLoading } = useDecomRequests(1, 100)
+  const approveDecom = useApproveDecomRequest()
+  const rejectDecom = useRejectDecomRequest()
+  const startDecom = useStartDecomRequest()
+  const completeDecom = useCompleteDecomRequest()
+  const deleteDecomMutation = useDeleteDecomRequest()
+  const [confirmDeleteDecomId, setConfirmDeleteDecomId] = useState<number | null>(null)
 
   const filteredItems = data?.items.filter(
     (req) => !activeFilter || req.status === activeFilter
@@ -148,6 +157,19 @@ export default function Admin() {
               Deployments
               {deploymentData && deploymentData.total > 0 && (
                 <span className="ml-1.5 px-1.5 py-0.5 text-xs bg-white/20 rounded-full">{deploymentData.total}</span>
+              )}
+            </button>
+            <button
+              onClick={() => setRequestsView('decom')}
+              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                requestsView === 'decom'
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              Decom Requests
+              {decomData && decomData.total > 0 && (
+                <span className="ml-1.5 px-1.5 py-0.5 text-xs bg-white/20 rounded-full">{decomData.total}</span>
               )}
             </button>
           </div>
@@ -306,6 +328,133 @@ export default function Admin() {
                               ) : (
                                 <button
                                   onClick={() => setConfirmDeleteId(req.id)}
+                                  className="px-2 py-1 text-xs font-medium text-red-600 bg-red-50 rounded hover:bg-red-100"
+                                >
+                                  Delete
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          )}
+
+          {requestsView === 'decom' && (
+            <>
+              {decomLoading && <p className="text-gray-500">Loading...</p>}
+
+              {decomData && decomData.items.length === 0 && !decomLoading && (
+                <div className="text-center py-12 bg-white rounded-lg shadow">
+                  <p className="text-gray-500">No decom requests yet.</p>
+                </div>
+              )}
+
+              {decomData && decomData.items.length > 0 && (
+                <div className="bg-white rounded-lg shadow overflow-hidden">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Resource</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Requestor</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reason</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Jira</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Submitted</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {decomData.items.map((d) => (
+                        <tr key={d.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 text-sm text-gray-500">#{d.id}</td>
+                          <td className="px-4 py-3">
+                            <Link
+                              to={`/decom/${d.id}`}
+                              className="text-indigo-600 hover:text-indigo-900 text-sm font-medium"
+                            >
+                              {d.resource_name || `Decom #${d.id}`}
+                            </Link>
+                            {d.ip_address && (
+                              <div className="text-xs text-gray-400 font-mono">{d.ip_address}</div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="text-sm text-gray-900">{d.requestor_name}</div>
+                            <div className="text-xs text-gray-500">{d.requestor_email}</div>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-500 max-w-xs truncate">{d.reason}</td>
+                          <td className="px-4 py-3">
+                            <StatusBadge status={d.status} />
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-500">{d.jira_issue_key ?? '-'}</td>
+                          <td className="px-4 py-3 text-xs text-gray-500">
+                            {new Date(d.created_at).toLocaleString()}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex gap-2 flex-wrap">
+                              {d.status === 'pending_approval' && (
+                                <>
+                                  <button
+                                    onClick={() => approveDecom.mutate(d.id)}
+                                    disabled={approveDecom.isPending}
+                                    className="px-2 py-1 text-xs font-medium text-white bg-green-600 rounded hover:bg-green-700 disabled:opacity-50"
+                                  >
+                                    Approve
+                                  </button>
+                                  <button
+                                    onClick={() => rejectDecom.mutate(d.id)}
+                                    disabled={rejectDecom.isPending}
+                                    className="px-2 py-1 text-xs font-medium text-white bg-red-600 rounded hover:bg-red-700 disabled:opacity-50"
+                                  >
+                                    Reject
+                                  </button>
+                                </>
+                              )}
+                              {d.status === 'approved' && (
+                                <button
+                                  onClick={() => startDecom.mutate(d.id)}
+                                  disabled={startDecom.isPending}
+                                  className="px-2 py-1 text-xs font-medium text-white bg-purple-600 rounded hover:bg-purple-700 disabled:opacity-50"
+                                >
+                                  Start
+                                </button>
+                              )}
+                              {(d.status === 'approved' || d.status === 'in_progress') && (
+                                <button
+                                  onClick={() => completeDecom.mutate(d.id)}
+                                  disabled={completeDecom.isPending}
+                                  className="px-2 py-1 text-xs font-medium text-white bg-green-600 rounded hover:bg-green-700 disabled:opacity-50"
+                                >
+                                  Complete
+                                </button>
+                              )}
+                              {confirmDeleteDecomId === d.id ? (
+                                <>
+                                  <button
+                                    onClick={() => {
+                                      deleteDecomMutation.mutate(d.id, { onSuccess: () => setConfirmDeleteDecomId(null) })
+                                    }}
+                                    disabled={deleteDecomMutation.isPending}
+                                    className="px-2 py-1 text-xs font-medium text-white bg-red-600 rounded hover:bg-red-700 disabled:opacity-50"
+                                  >
+                                    {deleteDecomMutation.isPending ? '...' : 'Sure?'}
+                                  </button>
+                                  <button
+                                    onClick={() => setConfirmDeleteDecomId(null)}
+                                    className="px-2 py-1 text-xs font-medium text-gray-600 bg-gray-100 rounded hover:bg-gray-200"
+                                  >
+                                    No
+                                  </button>
+                                </>
+                              ) : (
+                                <button
+                                  onClick={() => setConfirmDeleteDecomId(d.id)}
                                   className="px-2 py-1 text-xs font-medium text-red-600 bg-red-50 rounded hover:bg-red-100"
                                 >
                                   Delete

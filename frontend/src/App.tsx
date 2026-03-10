@@ -5,6 +5,8 @@ import Dashboard from './pages/Dashboard'
 import NewRequest from './pages/NewRequest'
 import RequestDetail from './pages/RequestDetail'
 import DeploymentDetail from './pages/DeploymentDetail'
+import NewDecomRequest from './pages/NewDecomRequest'
+import DecomRequestDetail from './pages/DecomRequestDetail'
 import Admin from './pages/Admin'
 
 export default function App() {
@@ -15,6 +17,8 @@ export default function App() {
         <Route path="/new" element={<NewRequest />} />
         <Route path="/request/:id" element={<RequestDetail />} />
         <Route path="/deployment/:id" element={<DeploymentDetail />} />
+        <Route path="/decom/new" element={<NewDecomRequest />} />
+        <Route path="/decom/:id" element={<DecomRequestDetail />} />
         <Route path="/admin" element={<RequireAdmin><Admin /></RequireAdmin>} />
       </Route>
     </Routes>

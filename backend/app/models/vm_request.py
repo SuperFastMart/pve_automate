@@ -14,6 +14,7 @@ class RequestStatus(str, enum.Enum):
     PROVISIONING = "provisioning"
     PROVISIONING_FAILED = "provisioning_failed"
     COMPLETED = "completed"
+    DECOMMISSIONED = "decommissioned"
 
 
 def _utcnow():

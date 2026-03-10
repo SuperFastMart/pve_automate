@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.database import init_db
-from app.routers import config_api, deployments, environments, health, settings, vm_requests, webhooks
+from app.routers import config_api, decom_requests, deployments, environments, health, settings, vm_requests, webhooks
 
 logging.basicConfig(
     level=getattr(logging, get_settings().LOG_LEVEL.upper(), logging.INFO),
@@ -41,4 +41,5 @@ app.include_router(environments.router)
 app.include_router(deployments.router)
 app.include_router(vm_requests.router)
 app.include_router(settings.router)
+app.include_router(decom_requests.router)
 app.include_router(webhooks.router)

@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Decommissioning Complete{% endblock %}
+{% block content %}
+<h2 style="margin:0 0 16px 0; color:#1e293b; font-size:18px;">Decommissioning Complete</h2>
+<p style="margin:0 0 16px 0; color:#334155; font-size:14px; line-height:1.6;">
+  Hi {{ decom.requestor_name }},
+</p>
+<p style="margin:0 0 24px 0; color:#334155; font-size:14px; line-height:1.6;">
+  Your resource <strong>{{ resource_name }}</strong> has been successfully decommissioned.
+  All associated IP addresses have been released.
+</p>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f8fafc; border-radius:6px; border:1px solid #e2e8f0; margin-bottom:24px;">
+  <tr>
+    <td style="padding:16px;">
+      <table role="presentation" width="100%" cellpadding="4" cellspacing="0">
+        <tr>
+          <td style="color:#64748b; font-size:13px; width:140px; vertical-align:top;">Resource</td>
+          <td style="color:#1e293b; font-size:13px; font-weight:600;">{{ resource_name }}</td>
+        </tr>
+        <tr>
+          <td style="color:#64748b; font-size:13px; vertical-align:top;">Reason</td>
+          <td style="color:#1e293b; font-size:13px;">{{ decom.reason }}</td>
+        </tr>
+        <tr>
+          <td style="color:#64748b; font-size:13px; vertical-align:top;">Completed</td>
+          <td style="color:#1e293b; font-size:13px;">{{ decom.completed_at.strftime('%Y-%m-%d %H:%M UTC') }}</td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+
+<p style="margin:16px 0 0 0; color:#64748b; font-size:13px;">
+  No further action is required.
+</p>
+{% endblock %}

@@ -10,6 +10,7 @@ from sqlalchemy.orm import selectinload
 
 from app.config import get_effective_settings
 from app.database import get_db
+from app.models.decom_request import DecomRequest, DecomStatus
 from app.models.deployment import Deployment, DeploymentStatus
 from app.models.vm_request import RequestStatus, VMRequest
 from app.services.provisioning import provision_deployment, provision_vm
@@ -83,7 +84,17 @@ async def jira_webhook(
             db, deployment, issue_key, new_status, approve_status, reject_status
         )
 
-    logger.debug(f"No VM request or deployment found for Jira issue {issue_key}")
+    # Try decom request
+    result = await db.execute(
+        select(DecomRequest).where(DecomRequest.jira_issue_key == issue_key)
+    )
+    decom_request = result.scalar_one_or_none()
+    if decom_request:
+        return await _handle_decom_request_webhook(
+            db, decom_request, issue_key, new_status, approve_status, reject_status
+        )
+
+    logger.debug(f"No VM request, deployment, or decom request found for Jira issue {issue_key}")
     return {"status": "ignored", "reason": f"no matching request for {issue_key}"}
 
 
@@ -174,5 +185,42 @@ async def _handle_deployment_webhook(
             asyncio.create_task(send_request_rejected(deployment.vm_requests[0].id))
 
         return {"status": "rejected", "deployment_id": deployment.id}
+
+    return {"status": "ignored", "reason": f"unhandled status: {new_status}"}
+
+
+async def _handle_decom_request_webhook(
+    db: AsyncSession,
+    decom_request: DecomRequest,
+    issue_key: str,
+    new_status: str,
+    approve_status: str,
+    reject_status: str,
+):
+    """Handle a Jira webhook for a decom request."""
+    if decom_request.status != DecomStatus.PENDING_APPROVAL:
+        return {
+            "status": "ignored",
+            "reason": f"decom request {decom_request.id} is in '{decom_request.status.value}' state",
+        }
+
+    if new_status.lower() == approve_status.lower():
+        decom_request.status = DecomStatus.APPROVED
+        decom_request.approved_at = datetime.now(timezone.utc)
+        await db.commit()
+        logger.info(f"Auto-approved decom request {decom_request.id} via Jira webhook ({issue_key})")
+
+        from app.routers.decom_requests import _send_decom_email
+        asyncio.create_task(_send_decom_email(decom_request.id, "approved"))
+        return {"status": "approved", "decom_request_id": decom_request.id}
+
+    elif new_status.lower() == reject_status.lower():
+        decom_request.status = DecomStatus.REJECTED
+        await db.commit()
+        logger.info(f"Auto-rejected decom request {decom_request.id} via Jira webhook ({issue_key})")
+
+        from app.routers.decom_requests import _send_decom_email
+        asyncio.create_task(_send_decom_email(decom_request.id, "rejected"))
+        return {"status": "rejected", "decom_request_id": decom_request.id}
 
     return {"status": "ignored", "reason": f"unhandled status: {new_status}"}

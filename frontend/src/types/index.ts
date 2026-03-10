@@ -5,6 +5,7 @@ export type RequestStatus =
   | 'provisioning'
   | 'provisioning_failed'
   | 'completed'
+  | 'decommissioned'
 
 export type ResourceType = 'vm' | 'lxc'
 
@@ -233,4 +234,39 @@ export interface Location {
   name: string
   description: string
   address: string
+}
+
+export type DecomStatus =
+  | 'pending_approval'
+  | 'approved'
+  | 'rejected'
+  | 'in_progress'
+  | 'completed'
+  | 'cancelled'
+
+export interface DecomRequest {
+  id: number
+  vm_request_id: number | null
+  deployment_id: number | null
+  reason: string
+  requestor_name: string
+  requestor_email: string
+  review_date: string | null
+  notes: string | null
+  status: DecomStatus
+  jira_issue_key: string | null
+  jira_issue_url: string | null
+  error_message: string | null
+  created_at: string
+  updated_at: string
+  approved_at: string | null
+  completed_at: string | null
+  resource_name: string | null
+  resource_type: string | null
+  ip_address: string | null
+}
+
+export interface DecomRequestList {
+  items: DecomRequest[]
+  total: number
 }

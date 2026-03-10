@@ -8,6 +8,7 @@ export default function Layout() {
   const navLinks = [
     { to: '/', label: 'Dashboard' },
     { to: '/new', label: 'New Request' },
+    { to: '/decom/new', label: 'Decom Request' },
   ]
 
   return (

@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { VMRequest, VMRequestList, TShirtSizes, OSTemplates, WorkloadType, SettingsGroup, SettingItem, ConnectionTestResult, PVETemplate, OSTemplateMapping, Subnet, Location, PVEEnvironment, PVEEnvironmentListItem, Deployment, DeploymentList, ResourceType } from '../types'
+import type { VMRequest, VMRequestList, TShirtSizes, OSTemplates, WorkloadType, SettingsGroup, SettingItem, ConnectionTestResult, PVETemplate, OSTemplateMapping, Subnet, Location, PVEEnvironment, PVEEnvironmentListItem, Deployment, DeploymentList, ResourceType, DecomRequest, DecomRequestList } from '../types'
 
 const api = axios.create({
   baseURL: '/api/v1',
@@ -306,4 +306,56 @@ export async function retryDeployment(id: number): Promise<Deployment> {
 
 export async function deleteDeployment(id: number): Promise<void> {
   await api.delete(`/deployments/${id}`)
+}
+
+// Decom Request API
+export interface CreateDecomRequestPayload {
+  vm_request_id?: number
+  deployment_id?: number
+  reason: string
+  review_date?: string
+}
+
+export async function createDecomRequest(payload: CreateDecomRequestPayload): Promise<DecomRequest> {
+  const { data } = await api.post<DecomRequest>('/decom-requests', payload)
+  return data
+}
+
+export async function getDecomRequests(page = 1, size = 20): Promise<DecomRequestList> {
+  const { data } = await api.get<DecomRequestList>('/decom-requests', { params: { page, size } })
+  return data
+}
+
+export async function getDecomRequest(id: number): Promise<DecomRequest> {
+  const { data } = await api.get<DecomRequest>(`/decom-requests/${id}`)
+  return data
+}
+
+export async function approveDecomRequest(id: number): Promise<DecomRequest> {
+  const { data } = await api.post<DecomRequest>(`/decom-requests/${id}/approve`)
+  return data
+}
+
+export async function rejectDecomRequest(id: number): Promise<DecomRequest> {
+  const { data } = await api.post<DecomRequest>(`/decom-requests/${id}/reject`)
+  return data
+}
+
+export async function startDecomRequest(id: number): Promise<DecomRequest> {
+  const { data } = await api.post<DecomRequest>(`/decom-requests/${id}/start`)
+  return data
+}
+
+export async function completeDecomRequest(id: number): Promise<DecomRequest> {
+  const { data } = await api.post<DecomRequest>(`/decom-requests/${id}/complete`)
+  return data
+}
+
+export async function cancelDecomRequest(id: number): Promise<DecomRequest> {
+  const { data } = await api.post<DecomRequest>(`/decom-requests/${id}/cancel`)
+  return data
+}
+
+export async function deleteDecomRequest(id: number): Promise<void> {
+  await api.delete(`/decom-requests/${id}`)
 }
