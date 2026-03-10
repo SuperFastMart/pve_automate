@@ -206,6 +206,7 @@ class ProxmoxService:
         ssh_public_keys: str | None = None,
         unprivileged: bool = True,
         storage: str = "local-lvm",
+        password: str | None = None,
     ) -> str:
         """Create an LXC container. Returns the UPID (task ID)."""
         params = {
@@ -225,6 +226,8 @@ class ProxmoxService:
             params["searchdomain"] = searchdomain
         if ssh_public_keys:
             params["ssh-public-keys"] = ssh_public_keys
+        if password:
+            params["password"] = password
         return self.proxmox.nodes(node).lxc.post(**params)
 
     def resize_lxc(

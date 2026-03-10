@@ -40,6 +40,10 @@ class Environment(Base):
     vsphere_datacenter = Column(String(255), nullable=True)  # vCenter only
     vsphere_cluster = Column(String(255), nullable=True)     # vCenter only
 
+    # Per-environment LXC networking defaults
+    default_bridge = Column(String(20), nullable=True, default=None)
+    default_vlan_tag = Column(Integer, nullable=True, default=None)
+
     enabled = Column(Boolean, default=True, nullable=False)
     is_default = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True), default=_utcnow, nullable=False)

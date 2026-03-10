@@ -30,6 +30,7 @@ class DeploymentVMItem(BaseModel):
     bridge: Optional[str] = None
     vlan_tag: Optional[int] = None
     enable_ssh_root: Optional[bool] = None
+    root_password: Optional[str] = None
 
 
 class DeploymentCreate(BaseModel):

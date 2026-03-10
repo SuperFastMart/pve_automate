@@ -28,6 +28,10 @@ class EnvironmentCreate(BaseModel):
     vsphere_datacenter: Optional[str] = None
     vsphere_cluster: Optional[str] = None
 
+    # Per-environment LXC networking defaults
+    default_bridge: Optional[str] = None
+    default_vlan_tag: Optional[int] = None
+
     enabled: bool = True
     is_default: bool = False
 
@@ -68,6 +72,10 @@ class EnvironmentUpdate(BaseModel):
     vsphere_datacenter: Optional[str] = None
     vsphere_cluster: Optional[str] = None
 
+    # Per-environment LXC networking defaults
+    default_bridge: Optional[str] = None
+    default_vlan_tag: Optional[int] = None
+
     enabled: Optional[bool] = None
     is_default: Optional[bool] = None
 
@@ -95,6 +103,10 @@ class EnvironmentResponse(BaseModel):
     vsphere_datacenter: Optional[str]
     vsphere_cluster: Optional[str]
 
+    # Per-environment LXC networking defaults
+    default_bridge: Optional[str]
+    default_vlan_tag: Optional[int]
+
     enabled: bool
     is_default: bool
     created_at: datetime
@@ -112,6 +124,8 @@ class EnvironmentListItem(BaseModel):
     environment_type: str
     location_id: Optional[int]
     location_name: Optional[str]
+    default_bridge: Optional[str]
+    default_vlan_tag: Optional[int]
     is_default: bool
 
     model_config = {"from_attributes": True}

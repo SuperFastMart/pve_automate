@@ -32,6 +32,7 @@ class VMRequestCreate(BaseModel):
     bridge: Optional[str] = None
     vlan_tag: Optional[int] = None
     enable_ssh_root: Optional[bool] = None
+    root_password: Optional[str] = None
 
     @model_validator(mode="after")
     def validate_custom_size(self):
@@ -69,6 +70,9 @@ class VMRequestResponse(BaseModel):
     hypervisor_vm_id: Optional[str] = None
     hypervisor_host: Optional[str] = None
     ip_address: Optional[str]
+    ip_gateway: Optional[str] = None
+    ip_mask: Optional[str] = None
+    nameserver: Optional[str] = None
     subnet_id: Optional[int]
     phpipam_address_id: Optional[int]
     environment_id: Optional[int]
@@ -78,6 +82,7 @@ class VMRequestResponse(BaseModel):
     bridge: Optional[str] = None
     vlan_tag: Optional[int] = None
     enable_ssh_root: Optional[bool] = None
+    root_password: Optional[str] = None
     error_message: Optional[str]
     created_at: datetime
     updated_at: datetime

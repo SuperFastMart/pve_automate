@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import secrets
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -90,6 +91,12 @@ async def create_deployment(
             ram_mb = size_config["ram_mb"]
             disk_gb = size_config["disk_gb"]
 
+        # Auto-generate root password for LXC containers if not provided
+        root_password = None
+        if payload.resource_type == "lxc":
+            from app.routers.vm_requests import _generate_passphrase
+            root_password = vm.root_password or _generate_passphrase()
+
         vm_request = VMRequest(
             vm_name=vm.vm_name,
             description=vm.description,
@@ -110,6 +117,7 @@ async def create_deployment(
             bridge=vm.bridge,
             vlan_tag=vm.vlan_tag,
             enable_ssh_root=vm.enable_ssh_root,
+            root_password=root_password,
             status=RequestStatus.PENDING_APPROVAL,
         )
         db.add(vm_request)
@@ -133,6 +141,14 @@ async def create_deployment(
                     )
                     vm_req.ip_address = allocation["ip"]
                     vm_req.phpipam_address_id = allocation["id"]
+
+                    # Fetch subnet details for gateway, mask, nameserver
+                    subnet_details = await ipam.get_subnet(vm_def.subnet_id)
+                    if subnet_details:
+                        vm_req.ip_gateway = subnet_details.get("gateway")
+                        vm_req.ip_mask = subnet_details.get("mask")
+                        vm_req.nameserver = subnet_details.get("nameservers")
+
                     await ipam.close()
                     logger.info(
                         f"Allocated IP {allocation['ip']} for VM {vm_req.vm_name} "

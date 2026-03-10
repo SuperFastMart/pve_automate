@@ -24,6 +24,7 @@ export default function RequestDetail() {
     ...(isLXC && req.vlan_tag ? [{ label: 'VLAN Tag', value: String(req.vlan_tag) }] : []),
     ...(isLXC && req.mtu ? [{ label: 'MTU', value: String(req.mtu) }] : []),
     ...(isLXC ? [{ label: 'Root SSH Login', value: req.enable_ssh_root ? 'Enabled' : 'Disabled' }] : []),
+    ...(isLXC && req.root_password ? [{ label: 'Root Password', value: req.root_password }] : []),
   ]
 
   const provisioningDetails = [
@@ -31,6 +32,8 @@ export default function RequestDetail() {
     { label: 'VM ID', value: req.hypervisor_vm_id ?? req.proxmox_vmid },
     { label: 'Host', value: req.hypervisor_host ?? req.proxmox_node },
     { label: 'IP Address', value: req.ip_address },
+    ...(req.ip_gateway ? [{ label: 'Gateway', value: req.ip_gateway }] : []),
+    ...(req.nameserver ? [{ label: 'Nameserver', value: req.nameserver }] : []),
   ]
 
   return (

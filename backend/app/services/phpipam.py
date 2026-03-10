@@ -44,6 +44,15 @@ class PhpIpamService:
             return []
         subnets = []
         for s in data.get("data", []):
+            # Gateway can be a dict {"ip_addr": "x.x.x.x"} or a string
+            gw_raw = s.get("gateway")
+            if isinstance(gw_raw, dict):
+                gateway = gw_raw.get("ip_addr")
+            elif gw_raw and str(gw_raw) not in ("0", ""):
+                gateway = str(gw_raw)
+            else:
+                gateway = None
+
             subnets.append({
                 "id": int(s["id"]),
                 "subnet": s.get("subnet", ""),
@@ -52,6 +61,8 @@ class PhpIpamService:
                 "vlanId": s.get("vlanId"),
                 "sectionId": s.get("sectionId"),
                 "location": s.get("location"),
+                "gateway": gateway,
+                "nameservers": s.get("nameservers", {}).get("namesrv1") if isinstance(s.get("nameservers"), dict) else None,
                 "usage": s.get("usage", {}),
             })
         return subnets
@@ -72,6 +83,29 @@ class PhpIpamService:
             }
             for loc in data.get("data", [])
         ]
+
+    async def get_subnet(self, subnet_id: int) -> dict | None:
+        """Fetch a single subnet by ID, returning gateway and mask."""
+        resp = await self._client.get(f"/subnets/{subnet_id}/")
+        resp.raise_for_status()
+        data = resp.json()
+        if not data.get("success"):
+            return None
+        s = data.get("data", {})
+        gw_raw = s.get("gateway")
+        if isinstance(gw_raw, dict):
+            gateway = gw_raw.get("ip_addr")
+        elif gw_raw and str(gw_raw) not in ("0", ""):
+            gateway = str(gw_raw)
+        else:
+            gateway = None
+        return {
+            "id": int(s["id"]),
+            "subnet": s.get("subnet", ""),
+            "mask": s.get("mask", ""),
+            "gateway": gateway,
+            "nameservers": s.get("nameservers", {}).get("namesrv1") if isinstance(s.get("nameservers"), dict) else None,
+        }
 
     async def allocate_ip(
         self, subnet_id: int, hostname: str, description: str = "",

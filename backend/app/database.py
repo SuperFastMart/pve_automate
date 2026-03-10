@@ -207,11 +207,23 @@ def _upgrade_add_lxc_support(conn):
         conn.execute(text("ALTER TABLE vm_requests ADD COLUMN enable_ssh_root BOOLEAN"))
         logger.info("Migration complete: vm_requests now has LXC columns")
 
+    if vm_cols and "root_password" not in vm_cols:
+        logger.info("Migrating vm_requests: adding root_password column")
+        conn.execute(text("ALTER TABLE vm_requests ADD COLUMN root_password TEXT"))
+        logger.info("Migration complete: vm_requests now has root_password")
+
     if vm_cols and "bridge" not in vm_cols:
         logger.info("Migrating vm_requests: adding bridge and vlan_tag columns")
         conn.execute(text("ALTER TABLE vm_requests ADD COLUMN bridge VARCHAR(20)"))
         conn.execute(text("ALTER TABLE vm_requests ADD COLUMN vlan_tag INTEGER"))
         logger.info("Migration complete: vm_requests now has bridge and vlan_tag")
+
+    if vm_cols and "ip_gateway" not in vm_cols:
+        logger.info("Migrating vm_requests: adding ip_gateway, ip_mask, nameserver columns")
+        conn.execute(text("ALTER TABLE vm_requests ADD COLUMN ip_gateway VARCHAR(45)"))
+        conn.execute(text("ALTER TABLE vm_requests ADD COLUMN ip_mask VARCHAR(3)"))
+        conn.execute(text("ALTER TABLE vm_requests ADD COLUMN nameserver VARCHAR(255)"))
+        logger.info("Migration complete: vm_requests now has ip_gateway, ip_mask, nameserver")
 
     # deployments: add resource_type
     result = conn.execute(text("PRAGMA table_info(deployments)"))
@@ -230,6 +242,19 @@ def _upgrade_add_lxc_support(conn):
         logger.info("Migration complete: os_template_mappings now has template_type")
 
 
+def _upgrade_environments_add_lxc_defaults(conn):
+    """Add default_bridge and default_vlan_tag columns to pve_environments."""
+    result = conn.execute(text("PRAGMA table_info(pve_environments)"))
+    columns = [row[1] for row in result]
+    if not columns or "default_bridge" in columns:
+        return  # Table doesn't exist yet or already migrated
+
+    logger.info("Migrating pve_environments: adding default_bridge and default_vlan_tag columns")
+    conn.execute(text("ALTER TABLE pve_environments ADD COLUMN default_bridge VARCHAR(20)"))
+    conn.execute(text("ALTER TABLE pve_environments ADD COLUMN default_vlan_tag INTEGER"))
+    logger.info("Migration complete: pve_environments now has default_bridge and default_vlan_tag")
+
+
 async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(_upgrade_os_template_table)
@@ -237,4 +262,5 @@ async def init_db():
         await conn.run_sync(_upgrade_vm_requests_table)
         await conn.run_sync(_upgrade_os_templates_add_template_ref)
         await conn.run_sync(_upgrade_add_lxc_support)
+        await conn.run_sync(_upgrade_environments_add_lxc_defaults)
         await conn.run_sync(Base.metadata.create_all)

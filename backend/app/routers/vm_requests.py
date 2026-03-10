@@ -1,7 +1,37 @@
 import asyncio
 import logging
+import random
+import secrets
 from datetime import datetime, timezone
 from typing import Optional
+
+# Word list for passphrase generation (Title-Case-Hyphenated style)
+_PASSPHRASE_WORDS = [
+    "Welcome", "Thunder", "Marble", "Silver", "Garden", "Falcon", "Bridge",
+    "Copper", "Forest", "Rocket", "Planet", "Castle", "Dragon", "Sunset",
+    "Velvet", "Anchor", "Breeze", "Cobalt", "Dagger", "Emerald", "Frozen",
+    "Golden", "Harbor", "Ignite", "Jungle", "Kettle", "Lantern", "Magnet",
+    "Nimble", "Oracle", "Pepper", "Quartz", "Ribbon", "Shadow", "Timber",
+    "Umbra", "Violet", "Walnut", "Zenith", "Blaze", "Crisp", "Drift",
+    "Ember", "Flame", "Grain", "Haste", "Ivory", "Jewel", "Knack",
+    "Lemon", "Mango", "Noble", "Olive", "Pearl", "Quest", "Ridge",
+    "Slate", "Tropic", "Unity", "Vivid", "Wraith", "Yield", "Cedar",
+    "Alpine", "Beacon", "Cactus", "Denim", "Fable", "Glyph", "Helix",
+    "Indigo", "Karma", "Lotus", "Mystic", "Nexus", "Ozone", "Pixel",
+    "Raven", "Spark", "Topaz", "Vortex", "Wander", "Coral", "Delta",
+    "Flint", "Glade", "Heron", "Lunar", "Maple", "Orbit", "Prism",
+    "Sonic", "Tidal", "Ultra", "Vapor", "Wheat", "Amber", "Birch",
+    "Cloud", "Frost", "Green", "Ivory", "Mocha", "Ocean", "Plume",
+    "Rapid", "Stone", "Torch", "Verge", "Bloom", "Crane", "Dusty",
+]
+
+
+def _generate_passphrase(num_words: int = 4) -> str:
+    """Generate a passphrase like 'Welcome-Green-Science-Before-7'."""
+    rng = secrets.SystemRandom()
+    words = rng.sample(_PASSPHRASE_WORDS, num_words)
+    digit = rng.randint(1, 99)
+    return "-".join(words) + f"-{digit}"
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
@@ -56,6 +86,11 @@ async def create_vm_request(
             raise HTTPException(status_code=400, detail="Selected environment is disabled")
         environment_name = env.display_name
 
+    # Auto-generate root password for LXC containers if not provided
+    root_password = None
+    if payload.resource_type == "lxc":
+        root_password = payload.root_password or _generate_passphrase()
+
     vm_request = VMRequest(
         vm_name=payload.vm_name,
         description=payload.description,
@@ -75,6 +110,7 @@ async def create_vm_request(
         bridge=payload.bridge,
         vlan_tag=payload.vlan_tag,
         enable_ssh_root=payload.enable_ssh_root,
+        root_password=root_password,
         status=RequestStatus.PENDING_APPROVAL,
     )
 
@@ -95,12 +131,21 @@ async def create_vm_request(
                 )
                 vm_request.ip_address = allocation["ip"]
                 vm_request.phpipam_address_id = allocation["id"]
+
+                # Fetch subnet details for gateway, mask, nameserver
+                subnet_details = await ipam.get_subnet(payload.subnet_id)
+                if subnet_details:
+                    vm_request.ip_gateway = subnet_details.get("gateway")
+                    vm_request.ip_mask = subnet_details.get("mask")
+                    vm_request.nameserver = subnet_details.get("nameservers")
+
                 await db.commit()
                 await db.refresh(vm_request)
                 await ipam.close()
                 logger.info(
                     f"Allocated IP {allocation['ip']} (phpIPAM ID {allocation['id']}) "
                     f"for request {vm_request.id}"
+                    f"{f', gateway={vm_request.ip_gateway}' if vm_request.ip_gateway else ''}"
                 )
         except Exception as e:
             logger.warning(f"Failed to allocate IP for request {vm_request.id}: {e}")

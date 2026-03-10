@@ -137,8 +137,13 @@ async def _provision_proxmox_vm(db, vm_request: VMRequest, pve: ProxmoxService) 
     logger.info(f"Resized VMID {new_vmid}: {vm_request.cpu_cores}C / {vm_request.ram_mb}MB / {vm_request.disk_gb}GB")
 
     if tmpl.cloud_init and vm_request.ip_address:
+        ip = vm_request.ip_address
+        mask = getattr(vm_request, "ip_mask", None) or "24"
+        cidr = ip if "/" in ip else f"{ip}/{mask}"
         await asyncio.to_thread(
-            pve.configure_cloud_init, target_node, new_vmid, vm_request.ip_address,
+            pve.configure_cloud_init, target_node, new_vmid, cidr,
+            gateway=getattr(vm_request, "ip_gateway", None),
+            nameserver=getattr(vm_request, "nameserver", None),
         )
         logger.info(f"Configured cloud-init for VMID {new_vmid}")
 
@@ -181,8 +186,11 @@ async def _provision_proxmox_lxc(db, vm_request: VMRequest, pve: ProxmoxService)
     bridge = vm_request.bridge or "vmbr0"
     net_parts = ["name=eth0", f"bridge={bridge}"]
     if vm_request.ip_address:
-        cidr = vm_request.ip_address if "/" in vm_request.ip_address else f"{vm_request.ip_address}/24"
+        mask = vm_request.ip_mask or "24"
+        cidr = vm_request.ip_address if "/" in vm_request.ip_address else f"{vm_request.ip_address}/{mask}"
         net_parts.append(f"ip={cidr}")
+        if vm_request.ip_gateway:
+            net_parts.append(f"gw={vm_request.ip_gateway}")
     if vm_request.vlan_tag:
         net_parts.append(f"tag={vm_request.vlan_tag}")
     if vm_request.mtu:
@@ -201,6 +209,7 @@ async def _provision_proxmox_lxc(db, vm_request: VMRequest, pve: ProxmoxService)
         vm_request.ram_mb,
         vm_request.disk_gb,
         net_config,
+        password=vm_request.root_password,
     )
     logger.info(f"LXC create task started: {upid}")
 

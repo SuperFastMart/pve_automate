@@ -21,6 +21,7 @@ interface VMEntry {
   enable_ssh_root: boolean
   bridge: string
   vlan_tag: string
+  root_password: string
 }
 
 const emptyVM: VMEntry = {
@@ -36,6 +37,7 @@ const emptyVM: VMEntry = {
   enable_ssh_root: true,
   bridge: 'vmbr1',
   vlan_tag: '400',
+  root_password: '',
 }
 
 interface DeploymentFormProps {
@@ -81,12 +83,17 @@ export default function DeploymentForm({ resourceType }: DeploymentFormProps) {
   const [vms, setVms] = useState<VMEntry[]>([{ ...emptyVM }])
   const [errors, setErrors] = useState<string[]>([])
 
-  // Auto-scope location when environment is selected
+  // Auto-scope location and apply LXC defaults when environment is selected
   useEffect(() => {
     if (!selectedEnvironment || !environments) return
     const env = environments.find((e) => String(e.id) === selectedEnvironment)
     if (env?.location_id && String(env.location_id) !== selectedLocation) {
       setSelectedLocation(String(env.location_id))
+    }
+    if (isLXC && env) {
+      const newBridge = env.default_bridge || 'vmbr1'
+      const newVlan = env.default_vlan_tag ? String(env.default_vlan_tag) : '400'
+      setVms(prev => prev.map(vm => ({ ...vm, bridge: newBridge, vlan_tag: newVlan })))
     }
   }, [selectedEnvironment]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -191,6 +198,7 @@ export default function DeploymentForm({ resourceType }: DeploymentFormProps) {
       ...(isLXC ? { enable_ssh_root: vm.enable_ssh_root } : {}),
       ...(isLXC && vm.bridge ? { bridge: vm.bridge } : {}),
       ...(isLXC && vm.vlan_tag ? { vlan_tag: Number(vm.vlan_tag) } : {}),
+      ...(isLXC && vm.root_password ? { root_password: vm.root_password } : {}),
     }))
 
     const result = await createDeployment.mutateAsync({
@@ -490,6 +498,18 @@ export default function DeploymentForm({ resourceType }: DeploymentFormProps) {
                       />
                       <span className="text-xs font-medium text-gray-600">Root SSH</span>
                     </label>
+                  </div>
+                  <div className="mt-2">
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      Root Password <span className="text-gray-400 font-normal">(blank = auto-generate)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={vm.root_password}
+                      onChange={(e) => updateVM(index, 'root_password', e.target.value)}
+                      placeholder="Auto-generated if empty"
+                      className="w-full max-w-xs rounded-md border border-gray-300 px-2 py-1 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    />
                   </div>
                 </div>
               )}

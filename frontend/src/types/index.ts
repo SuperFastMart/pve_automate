@@ -29,6 +29,9 @@ export interface VMRequest {
   hypervisor_vm_id: string | null
   hypervisor_host: string | null
   ip_address: string | null
+  ip_gateway: string | null
+  ip_mask: string | null
+  nameserver: string | null
   environment_id: number | null
   environment_name: string | null
   deployment_id: number | null
@@ -36,6 +39,7 @@ export interface VMRequest {
   enable_ssh_root: boolean | null
   bridge: string | null
   vlan_tag: number | null
+  root_password: string | null
   error_message: string | null
   created_at: string
   updated_at: string
@@ -112,6 +116,8 @@ export interface PVEEnvironment {
   vsphere_verify_ssl: boolean
   vsphere_datacenter: string | null
   vsphere_cluster: string | null
+  default_bridge: string | null
+  default_vlan_tag: number | null
   enabled: boolean
   is_default: boolean
   created_at: string
@@ -126,6 +132,8 @@ export interface PVEEnvironmentListItem {
   environment_type: EnvironmentType
   location_id: number | null
   location_name: string | null
+  default_bridge: string | null
+  default_vlan_tag: number | null
   is_default: boolean
 }
 

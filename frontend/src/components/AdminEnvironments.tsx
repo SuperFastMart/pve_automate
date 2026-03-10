@@ -30,6 +30,9 @@ interface EnvFormState {
   vsphere_verify_ssl: boolean
   vsphere_datacenter: string
   vsphere_cluster: string
+  // LXC defaults
+  default_bridge: string
+  default_vlan_tag: string
   // Common
   enabled: boolean
   is_default: boolean
@@ -53,6 +56,8 @@ const emptyForm: EnvFormState = {
   vsphere_verify_ssl: false,
   vsphere_datacenter: '',
   vsphere_cluster: '',
+  default_bridge: '',
+  default_vlan_tag: '',
   enabled: true,
   is_default: false,
 }
@@ -88,6 +93,8 @@ export default function AdminEnvironments() {
       location_name: form.location_id && locations
         ? locations.find((l) => String(l.id) === form.location_id)?.name ?? null
         : null,
+      default_bridge: form.default_bridge || null,
+      default_vlan_tag: form.default_vlan_tag ? Number(form.default_vlan_tag) : null,
       enabled: form.enabled,
       is_default: form.is_default,
     }
@@ -140,6 +147,8 @@ export default function AdminEnvironments() {
       vsphere_verify_ssl: env.vsphere_verify_ssl ?? false,
       vsphere_datacenter: env.vsphere_datacenter || '',
       vsphere_cluster: env.vsphere_cluster || '',
+      default_bridge: env.default_bridge || '',
+      default_vlan_tag: env.default_vlan_tag ? String(env.default_vlan_tag) : '',
       enabled: env.enabled,
       is_default: env.is_default,
     })
@@ -285,6 +294,28 @@ export default function AdminEnvironments() {
               <input type="checkbox" checked={form.vsphere_verify_ssl} onChange={(e) => setForm({ ...form, vsphere_verify_ssl: e.target.checked })} className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
               <span className="text-sm text-gray-700">Verify SSL</span>
             </label>
+          </div>
+        </div>
+      )}
+
+      {/* LXC Defaults (Proxmox only) */}
+      {form.environment_type === 'proxmox' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-amber-50 rounded-lg border border-amber-200">
+          <h4 className="md:col-span-2 text-sm font-semibold text-amber-800">LXC Container Defaults</h4>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Default Bridge</label>
+            <select value={form.default_bridge} onChange={(e) => setForm({ ...form, default_bridge: e.target.value })} className={inputCls}>
+              <option value="">No default</option>
+              {['vmbr0', 'vmbr1', 'vmbr2', 'vmbr3', 'vmbr4'].map((b) => (
+                <option key={b} value={b}>{b}</option>
+              ))}
+            </select>
+            <p className="mt-0.5 text-xs text-gray-400">Pre-selected bridge for LXC requests on this environment</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Default VLAN Tag</label>
+            <input type="number" value={form.default_vlan_tag} onChange={(e) => setForm({ ...form, default_vlan_tag: e.target.value })} min={1} max={4094} placeholder="No default" className={inputCls} />
+            <p className="mt-0.5 text-xs text-gray-400">Pre-filled VLAN tag for LXC requests on this environment</p>
           </div>
         </div>
       )}

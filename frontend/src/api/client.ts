@@ -73,6 +73,9 @@ export interface CreateVMRequestPayload {
   disk_gb?: number
   mtu?: number
   enable_ssh_root?: boolean
+  bridge?: string
+  vlan_tag?: number
+  root_password?: string
 }
 
 export async function createVMRequest(payload: CreateVMRequestPayload): Promise<VMRequest> {
@@ -255,6 +258,7 @@ export interface DeploymentVMPayload {
   enable_ssh_root?: boolean
   bridge?: string
   vlan_tag?: number
+  root_password?: string
 }
 
 export interface CreateDeploymentPayload {

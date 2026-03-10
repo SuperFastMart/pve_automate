@@ -50,6 +50,8 @@ export default function VMRequestForm({ resourceType }: Props) {
   const [enableSshRoot, setEnableSshRoot] = useState(true)
   const [bridge, setBridge] = useState<string>('vmbr1')
   const [vlanTag, setVlanTag] = useState<string>('400')
+  const [rootPassword, setRootPassword] = useState<string>('')
+  const [showPassword, setShowPassword] = useState(false)
 
   const isLxc = resourceType === 'lxc'
   const nameLabel = isLxc ? 'Container Name' : 'VM Name'
@@ -75,12 +77,16 @@ export default function VMRequestForm({ resourceType }: Props) {
     }
   }, [selectedLocation]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-scope location when environment is selected
+  // Auto-scope location and apply LXC defaults when environment is selected
   useEffect(() => {
     if (!selectedEnvironment || !environments) return
     const env = environments.find((e) => String(e.id) === selectedEnvironment)
     if (env?.location_id && String(env.location_id) !== selectedLocation) {
       setSelectedLocation(String(env.location_id))
+    }
+    if (isLxc && env) {
+      if (env.default_bridge) setBridge(env.default_bridge)
+      if (env.default_vlan_tag) setVlanTag(String(env.default_vlan_tag))
     }
   }, [selectedEnvironment]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -178,6 +184,7 @@ export default function VMRequestForm({ resourceType }: Props) {
       ...(isLxc ? { enable_ssh_root: enableSshRoot } : {}),
       ...(isLxc && bridge ? { bridge } : {}),
       ...(isLxc && vlanTag ? { vlan_tag: Number(vlanTag) } : {}),
+      ...(isLxc && rootPassword ? { root_password: rootPassword } : {}),
     }
     const result = await createRequest.mutateAsync(payload)
     navigate(`/request/${result.id}`)
@@ -499,6 +506,31 @@ export default function VMRequestForm({ resourceType }: Props) {
                   </p>
                 </div>
               </div>
+            </div>
+            <div className="md:col-span-2 lg:col-span-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Root Password
+                <span className="text-xs font-normal text-gray-400 ml-1">(leave blank to auto-generate)</span>
+              </label>
+              <div className="flex gap-2 max-w-md">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={rootPassword}
+                  onChange={(e) => setRootPassword(e.target.value)}
+                  placeholder="Auto-generated if empty"
+                  className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="px-3 py-2 text-xs font-medium text-gray-600 bg-gray-100 rounded-md hover:bg-gray-200"
+                >
+                  {showPassword ? 'Hide' : 'Show'}
+                </button>
+              </div>
+              <p className="mt-1 text-xs text-gray-400">
+                Password will be included in the provisioning confirmation email
+              </p>
             </div>
           </div>
         </div>
