@@ -302,14 +302,29 @@ class ProxmoxService:
             client.close()
 
     def configure_lxc_ssh_root(self, node: str, vmid: int) -> None:
-        """Enable root SSH login inside a running LXC container."""
-        commands = [
-            f"pct exec {vmid} -- sed -i 's/^#*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config",
-            f"pct exec {vmid} -- systemctl restart sshd || pct exec {vmid} -- service ssh restart",
-        ]
-        for cmd in commands:
-            try:
-                self.exec_on_node(node, cmd)
-            except Exception as e:
-                logger.warning(f"Failed to run '{cmd}' on {node}: {e}")
-        logger.info(f"Configured SSH root login for LXC {vmid} on {node}")
+        """Enable root SSH login inside a running LXC container.
+
+        Uses the Proxmox host API to run 'pct exec' commands on the node.
+        The API token must have Sys.Console or root-equivalent permissions.
+        """
+        # Proxmox API: POST /nodes/{node}/exec — runs a command on the host
+        # We use this to call 'pct exec' which runs inside the container.
+        script = (
+            f"pct exec {vmid} -- sed -i 's/^#*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config && "
+            f"pct exec {vmid} -- sh -c 'systemctl restart sshd 2>/dev/null || service ssh restart'"
+        )
+
+        # Method 1: Try via Proxmox API node exec (PVE 8.4+)
+        try:
+            self.proxmox.nodes(node).execute.post(command="bash", **{"input-data": script})
+            logger.info(f"Configured SSH root login for LXC {vmid} on {node} via API node exec")
+            return
+        except Exception as e:
+            logger.info(f"API node exec not available for {node}: {e}, trying SSH fallback")
+
+        # Method 2: SSH to node
+        try:
+            self.exec_on_node(node, f"bash -c '{script}'")
+            logger.info(f"Configured SSH root login for LXC {vmid} on {node} via SSH")
+        except Exception as e:
+            logger.warning(f"Failed to configure SSH root for LXC {vmid}: {e}")
