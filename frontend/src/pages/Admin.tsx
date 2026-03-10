@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useVMRequests, useApproveVMRequest, useRejectVMRequest, useRetryVMRequest } from '../hooks/useVMRequests'
-import { useDeployments, useApproveDeployment, useRejectDeployment, useRetryDeployment } from '../hooks/useDeployments'
+import { useVMRequests, useApproveVMRequest, useRejectVMRequest, useRetryVMRequest, useDeleteVMRequest } from '../hooks/useVMRequests'
+import { useDeployments, useApproveDeployment, useRejectDeployment, useRetryDeployment, useDeleteDeployment } from '../hooks/useDeployments'
 import StatusBadge from '../components/StatusBadge'
 import AdminSettings from '../components/AdminSettings'
 import AdminTemplates from '../components/AdminTemplates'
@@ -49,11 +49,15 @@ export default function Admin() {
   const approve = useApproveVMRequest()
   const reject = useRejectVMRequest()
   const retry = useRetryVMRequest()
+  const deleteRequest = useDeleteVMRequest()
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null)
 
   const { data: deploymentData, isLoading: deploymentsLoading } = useDeployments(1, 100)
   const approveDeployment = useApproveDeployment()
   const rejectDeployment = useRejectDeployment()
   const retryDeployment = useRetryDeployment()
+  const deleteDeploymentMutation = useDeleteDeployment()
+  const [confirmDeleteDepId, setConfirmDeleteDepId] = useState<number | null>(null)
 
   const filteredItems = data?.items.filter(
     (req) => !activeFilter || req.status === activeFilter
@@ -253,33 +257,61 @@ export default function Admin() {
                             {new Date(req.created_at).toLocaleString()}
                           </td>
                           <td className="px-4 py-3">
-                            {req.status === 'pending_approval' && !req.deployment_id && (
-                              <div className="flex gap-2">
+                            <div className="flex gap-2">
+                              {req.status === 'pending_approval' && !req.deployment_id && (
+                                <>
+                                  <button
+                                    onClick={() => approve.mutate(req.id)}
+                                    disabled={approve.isPending}
+                                    className="px-2 py-1 text-xs font-medium text-white bg-green-600 rounded hover:bg-green-700 disabled:opacity-50"
+                                  >
+                                    Approve
+                                  </button>
+                                  <button
+                                    onClick={() => reject.mutate(req.id)}
+                                    disabled={reject.isPending}
+                                    className="px-2 py-1 text-xs font-medium text-white bg-red-600 rounded hover:bg-red-700 disabled:opacity-50"
+                                  >
+                                    Reject
+                                  </button>
+                                </>
+                              )}
+                              {req.status === 'provisioning_failed' && !req.deployment_id && (
                                 <button
-                                  onClick={() => approve.mutate(req.id)}
-                                  disabled={approve.isPending}
-                                  className="px-2 py-1 text-xs font-medium text-white bg-green-600 rounded hover:bg-green-700 disabled:opacity-50"
+                                  onClick={() => retry.mutate(req.id)}
+                                  disabled={retry.isPending}
+                                  className="px-2 py-1 text-xs font-medium text-white bg-amber-600 rounded hover:bg-amber-700 disabled:opacity-50"
                                 >
-                                  Approve
+                                  {retry.isPending ? 'Retrying...' : 'Retry'}
                                 </button>
+                              )}
+                              {confirmDeleteId === req.id ? (
+                                <>
+                                  <button
+                                    onClick={() => {
+                                      deleteRequest.mutate(req.id, { onSuccess: () => setConfirmDeleteId(null) })
+                                    }}
+                                    disabled={deleteRequest.isPending}
+                                    className="px-2 py-1 text-xs font-medium text-white bg-red-600 rounded hover:bg-red-700 disabled:opacity-50"
+                                  >
+                                    {deleteRequest.isPending ? '...' : 'Sure?'}
+                                  </button>
+                                  <button
+                                    onClick={() => setConfirmDeleteId(null)}
+                                    className="px-2 py-1 text-xs font-medium text-gray-600 bg-gray-100 rounded hover:bg-gray-200"
+                                  >
+                                    No
+                                  </button>
+                                </>
+                              ) : (
                                 <button
-                                  onClick={() => reject.mutate(req.id)}
-                                  disabled={reject.isPending}
-                                  className="px-2 py-1 text-xs font-medium text-white bg-red-600 rounded hover:bg-red-700 disabled:opacity-50"
+                                  onClick={() => setConfirmDeleteId(req.id)}
+                                  className="px-2 py-1 text-xs font-medium text-red-600 bg-red-50 rounded hover:bg-red-100"
                                 >
-                                  Reject
+                                  Delete
                                 </button>
-                              </div>
-                            )}
-                            {req.status === 'provisioning_failed' && !req.deployment_id && (
-                              <button
-                                onClick={() => retry.mutate(req.id)}
-                                disabled={retry.isPending}
-                                className="px-2 py-1 text-xs font-medium text-white bg-amber-600 rounded hover:bg-amber-700 disabled:opacity-50"
-                              >
-                                {retry.isPending ? 'Retrying...' : 'Retry'}
-                              </button>
-                            )}
+                              )}
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -346,33 +378,61 @@ export default function Admin() {
                             {new Date(dep.created_at).toLocaleString()}
                           </td>
                           <td className="px-4 py-3">
-                            {dep.status === 'pending_approval' && (
-                              <div className="flex gap-2">
+                            <div className="flex gap-2">
+                              {dep.status === 'pending_approval' && (
+                                <>
+                                  <button
+                                    onClick={() => approveDeployment.mutate(dep.id)}
+                                    disabled={approveDeployment.isPending}
+                                    className="px-2 py-1 text-xs font-medium text-white bg-green-600 rounded hover:bg-green-700 disabled:opacity-50"
+                                  >
+                                    Approve
+                                  </button>
+                                  <button
+                                    onClick={() => rejectDeployment.mutate(dep.id)}
+                                    disabled={rejectDeployment.isPending}
+                                    className="px-2 py-1 text-xs font-medium text-white bg-red-600 rounded hover:bg-red-700 disabled:opacity-50"
+                                  >
+                                    Reject
+                                  </button>
+                                </>
+                              )}
+                              {(dep.status === 'failed' || dep.status === 'partially_completed') && (
                                 <button
-                                  onClick={() => approveDeployment.mutate(dep.id)}
-                                  disabled={approveDeployment.isPending}
-                                  className="px-2 py-1 text-xs font-medium text-white bg-green-600 rounded hover:bg-green-700 disabled:opacity-50"
+                                  onClick={() => retryDeployment.mutate(dep.id)}
+                                  disabled={retryDeployment.isPending}
+                                  className="px-2 py-1 text-xs font-medium text-white bg-amber-600 rounded hover:bg-amber-700 disabled:opacity-50"
                                 >
-                                  Approve
+                                  {retryDeployment.isPending ? 'Retrying...' : 'Retry Failed'}
                                 </button>
+                              )}
+                              {confirmDeleteDepId === dep.id ? (
+                                <>
+                                  <button
+                                    onClick={() => {
+                                      deleteDeploymentMutation.mutate(dep.id, { onSuccess: () => setConfirmDeleteDepId(null) })
+                                    }}
+                                    disabled={deleteDeploymentMutation.isPending}
+                                    className="px-2 py-1 text-xs font-medium text-white bg-red-600 rounded hover:bg-red-700 disabled:opacity-50"
+                                  >
+                                    {deleteDeploymentMutation.isPending ? '...' : 'Sure?'}
+                                  </button>
+                                  <button
+                                    onClick={() => setConfirmDeleteDepId(null)}
+                                    className="px-2 py-1 text-xs font-medium text-gray-600 bg-gray-100 rounded hover:bg-gray-200"
+                                  >
+                                    No
+                                  </button>
+                                </>
+                              ) : (
                                 <button
-                                  onClick={() => rejectDeployment.mutate(dep.id)}
-                                  disabled={rejectDeployment.isPending}
-                                  className="px-2 py-1 text-xs font-medium text-white bg-red-600 rounded hover:bg-red-700 disabled:opacity-50"
+                                  onClick={() => setConfirmDeleteDepId(dep.id)}
+                                  className="px-2 py-1 text-xs font-medium text-red-600 bg-red-50 rounded hover:bg-red-100"
                                 >
-                                  Reject
+                                  Delete
                                 </button>
-                              </div>
-                            )}
-                            {(dep.status === 'failed' || dep.status === 'partially_completed') && (
-                              <button
-                                onClick={() => retryDeployment.mutate(dep.id)}
-                                disabled={retryDeployment.isPending}
-                                className="px-2 py-1 text-xs font-medium text-white bg-amber-600 rounded hover:bg-amber-700 disabled:opacity-50"
-                              >
-                                {retryDeployment.isPending ? 'Retrying...' : 'Retry Failed'}
-                              </button>
-                            )}
+                              )}
+                            </div>
                           </td>
                         </tr>
                       ))}
