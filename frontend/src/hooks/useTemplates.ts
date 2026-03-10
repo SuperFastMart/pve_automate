@@ -10,7 +10,8 @@ import type { OSTemplateMapping } from '../types'
 
 export function useScanPVETemplates() {
   return useMutation({
-    mutationFn: (environmentId?: number) => scanPVETemplates(environmentId),
+    mutationFn: ({ environmentId, templateType }: { environmentId?: number; templateType?: string }) =>
+      scanPVETemplates(environmentId, templateType),
   })
 }
 

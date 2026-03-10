@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { VMRequest, VMRequestList, TShirtSizes, OSTemplates, WorkloadType, SettingsGroup, SettingItem, ConnectionTestResult, PVETemplate, OSTemplateMapping, Subnet, Location, PVEEnvironment, PVEEnvironmentListItem, Deployment, DeploymentList } from '../types'
+import type { VMRequest, VMRequestList, TShirtSizes, OSTemplates, WorkloadType, SettingsGroup, SettingItem, ConnectionTestResult, PVETemplate, OSTemplateMapping, Subnet, Location, PVEEnvironment, PVEEnvironmentListItem, Deployment, DeploymentList, ResourceType } from '../types'
 
 const api = axios.create({
   baseURL: '/api/v1',
@@ -26,7 +26,7 @@ api.interceptors.request.use(async (config) => {
   return config
 })
 
-// Handle 401 responses by reloading once (triggers MSAL re-auth)
+// Handle error responses: extract API detail message + auto-reload on 401
 api.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -39,6 +39,22 @@ api.interceptors.response.use(
         window.location.reload()
       }
     }
+    // Extract the detail message from FastAPI error responses so callers
+    // see e.g. "Environment 'prod' already exists" instead of "Request failed with status code 409"
+    const detail = error.response?.data?.detail
+    if (detail) {
+      if (typeof detail === 'string') {
+        error.message = detail
+      } else if (Array.isArray(detail)) {
+        // Pydantic validation errors: [{loc: [...], msg: "...", type: "..."}]
+        error.message = detail
+          .map((e: { loc?: string[]; msg?: string }) => {
+            const field = e.loc?.filter((l: string) => l !== 'body').join('.') || 'field'
+            return `${field}: ${e.msg}`
+          })
+          .join('; ')
+      }
+    }
     return Promise.reject(error)
   },
 )
@@ -46,6 +62,7 @@ api.interceptors.response.use(
 export interface CreateVMRequestPayload {
   vm_name: string
   description?: string
+  resource_type?: ResourceType
   workload_type: string
   os_template: string
   tshirt_size: string
@@ -54,6 +71,8 @@ export interface CreateVMRequestPayload {
   cpu_cores?: number
   ram_mb?: number
   disk_gb?: number
+  mtu?: number
+  enable_ssh_root?: boolean
 }
 
 export async function createVMRequest(payload: CreateVMRequestPayload): Promise<VMRequest> {
@@ -76,8 +95,10 @@ export async function getTShirtSizes(): Promise<TShirtSizes> {
   return data
 }
 
-export async function getOSTemplates(environmentId?: number): Promise<OSTemplates> {
-  const params = environmentId ? { environment_id: environmentId } : {}
+export async function getOSTemplates(environmentId?: number, templateType?: string): Promise<OSTemplates> {
+  const params: Record<string, unknown> = {}
+  if (environmentId) params.environment_id = environmentId
+  if (templateType) params.template_type = templateType
   const { data } = await api.get<OSTemplates>('/config/os-templates', { params })
   return data
 }
@@ -159,8 +180,10 @@ export async function getLocations(): Promise<Location[]> {
 }
 
 // Template management API
-export async function scanPVETemplates(environmentId?: number): Promise<PVETemplate[]> {
-  const params = environmentId ? { environment_id: environmentId } : {}
+export async function scanPVETemplates(environmentId?: number, templateType?: string): Promise<PVETemplate[]> {
+  const params: Record<string, unknown> = {}
+  if (environmentId) params.environment_id = environmentId
+  if (templateType) params.template_type = templateType
   const { data } = await api.get<PVETemplate[]>('/settings/templates/scan', { params })
   return data
 }
@@ -226,11 +249,14 @@ export interface DeploymentVMPayload {
   cpu_cores?: number
   ram_mb?: number
   disk_gb?: number
+  mtu?: number
+  enable_ssh_root?: boolean
 }
 
 export interface CreateDeploymentPayload {
   name: string
   description?: string
+  resource_type?: ResourceType
   workload_type: string
   environment_id?: number
   vms: DeploymentVMPayload[]

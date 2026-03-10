@@ -8,7 +8,7 @@ export default function Dashboard() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">VM Requests</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Requests</h1>
         <Link
           to="/new"
           className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700"
@@ -67,6 +67,11 @@ export default function Dashboard() {
                     >
                       {req.vm_name}
                     </Link>
+                    {req.resource_type === 'lxc' && (
+                      <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-teal-100 text-teal-700">
+                        LXC
+                      </span>
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {req.requestor_name}

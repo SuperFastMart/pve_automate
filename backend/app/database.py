@@ -194,10 +194,41 @@ def _upgrade_os_templates_add_template_ref(conn):
     logger.info("Migration complete: os_template_mappings rebuilt with nullable vmid/node + template_ref")
 
 
+def _upgrade_add_lxc_support(conn):
+    """Add LXC support columns: resource_type, mtu, enable_ssh_root, template_type."""
+
+    # vm_requests: add resource_type, mtu, enable_ssh_root
+    result = conn.execute(text("PRAGMA table_info(vm_requests)"))
+    vm_cols = [row[1] for row in result]
+    if vm_cols and "resource_type" not in vm_cols:
+        logger.info("Migrating vm_requests: adding LXC support columns")
+        conn.execute(text("ALTER TABLE vm_requests ADD COLUMN resource_type VARCHAR(10) NOT NULL DEFAULT 'vm'"))
+        conn.execute(text("ALTER TABLE vm_requests ADD COLUMN mtu INTEGER"))
+        conn.execute(text("ALTER TABLE vm_requests ADD COLUMN enable_ssh_root BOOLEAN"))
+        logger.info("Migration complete: vm_requests now has LXC columns")
+
+    # deployments: add resource_type
+    result = conn.execute(text("PRAGMA table_info(deployments)"))
+    dep_cols = [row[1] for row in result]
+    if dep_cols and "resource_type" not in dep_cols:
+        logger.info("Migrating deployments: adding resource_type column")
+        conn.execute(text("ALTER TABLE deployments ADD COLUMN resource_type VARCHAR(10) NOT NULL DEFAULT 'vm'"))
+        logger.info("Migration complete: deployments now has resource_type")
+
+    # os_template_mappings: add template_type
+    result = conn.execute(text("PRAGMA table_info(os_template_mappings)"))
+    tmpl_cols = [row[1] for row in result]
+    if tmpl_cols and "template_type" not in tmpl_cols:
+        logger.info("Migrating os_template_mappings: adding template_type column")
+        conn.execute(text("ALTER TABLE os_template_mappings ADD COLUMN template_type VARCHAR(10) NOT NULL DEFAULT 'vm'"))
+        logger.info("Migration complete: os_template_mappings now has template_type")
+
+
 async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(_upgrade_os_template_table)
         await conn.run_sync(_upgrade_environments_table)
         await conn.run_sync(_upgrade_vm_requests_table)
         await conn.run_sync(_upgrade_os_templates_add_template_ref)
+        await conn.run_sync(_upgrade_add_lxc_support)
         await conn.run_sync(Base.metadata.create_all)

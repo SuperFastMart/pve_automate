@@ -155,6 +155,79 @@ async def _provision_proxmox_vm(db, vm_request: VMRequest, pve: ProxmoxService) 
     vm_request.completed_at = datetime.now(timezone.utc)
 
 
+# ── Proxmox LXC provisioning ───────────────────────────────────
+
+async def _provision_proxmox_lxc(db, vm_request: VMRequest, pve: ProxmoxService) -> None:
+    """Provision a single LXC container on Proxmox."""
+    tmpl = await _resolve_template(db, vm_request.os_template, vm_request.environment_id)
+
+    if not tmpl.template_ref:
+        raise ValueError(
+            f"Template '{vm_request.os_template}' has no template_ref (CT template path). "
+            f"Configure an LXC template mapping with template_ref for this environment."
+        )
+
+    all_settings = await get_effective_settings(db)
+    strategy = all_settings.get("NODE_SELECTION_STRATEGY", "least_memory")
+
+    selector = NodeSelector(pve)
+    target_node = await asyncio.to_thread(selector.select_node, strategy)
+    logger.info(f"Selected node {target_node} for LXC {vm_request.vm_name}")
+
+    new_vmid = await asyncio.to_thread(pve.get_next_vmid)
+    logger.info(f"Allocated VMID {new_vmid} for LXC {vm_request.vm_name}")
+
+    # Build network config
+    net_parts = ["name=eth0", "bridge=vmbr0"]
+    if vm_request.ip_address:
+        cidr = vm_request.ip_address if "/" in vm_request.ip_address else f"{vm_request.ip_address}/24"
+        net_parts.append(f"ip={cidr}")
+    if vm_request.mtu:
+        net_parts.append(f"mtu={vm_request.mtu}")
+    net_parts.append("type=veth")
+    net_config = ",".join(net_parts)
+
+    # Create LXC container
+    upid = await asyncio.to_thread(
+        pve.create_lxc,
+        target_node,
+        new_vmid,
+        tmpl.template_ref,
+        vm_request.vm_name,
+        vm_request.cpu_cores,
+        vm_request.ram_mb,
+        vm_request.disk_gb,
+        net_config,
+    )
+    logger.info(f"LXC create task started: {upid}")
+
+    success = await asyncio.to_thread(pve.wait_for_task, target_node, upid, 300)
+    if not success:
+        raise RuntimeError(f"LXC create task failed: {upid}")
+    logger.info(f"LXC created for VMID {new_vmid}")
+
+    # Start the container
+    start_upid = await asyncio.to_thread(pve.start_lxc, target_node, new_vmid)
+    await asyncio.to_thread(pve.wait_for_task, target_node, start_upid, 120)
+    logger.info(f"Started LXC {new_vmid}")
+
+    # Post-creation: enable root SSH login if requested
+    if vm_request.enable_ssh_root:
+        try:
+            await asyncio.sleep(5)
+            await asyncio.to_thread(pve.configure_lxc_ssh_root, target_node, new_vmid)
+        except Exception as e:
+            logger.warning(f"Failed to configure SSH root for LXC {new_vmid}: {e}")
+
+    # Update DB
+    vm_request.status = RequestStatus.COMPLETED
+    vm_request.proxmox_vmid = new_vmid
+    vm_request.proxmox_node = target_node
+    vm_request.hypervisor_vm_id = str(new_vmid)
+    vm_request.hypervisor_host = target_node
+    vm_request.completed_at = datetime.now(timezone.utc)
+
+
 # ── vSphere provisioning ────────────────────────────────────────
 
 async def _provision_vsphere_vm(db, vm_request: VMRequest, env) -> None:
@@ -221,14 +294,20 @@ async def _provision_vsphere_vm(db, vm_request: VMRequest, env) -> None:
 # ── Dispatch ─────────────────────────────────────────────────────
 
 async def _provision_single_vm(db, vm_request: VMRequest, env=None, pve: ProxmoxService | None = None) -> None:
-    """Provision a single VM, dispatching by environment type."""
+    """Provision a single VM or LXC, dispatching by environment type and resource type."""
     env_type = getattr(env, "environment_type", "proxmox") if env else "proxmox"
+    resource_type = getattr(vm_request, "resource_type", "vm") or "vm"
 
     if env_type == "proxmox":
         if pve is None:
             pve = await _get_proxmox_service(db, env)
-        await _provision_proxmox_vm(db, vm_request, pve)
+        if resource_type == "lxc":
+            await _provision_proxmox_lxc(db, vm_request, pve)
+        else:
+            await _provision_proxmox_vm(db, vm_request, pve)
     elif env_type in ("esxi", "vcenter"):
+        if resource_type == "lxc":
+            raise ValueError("LXC containers are not supported on vSphere/ESXi environments")
         await _provision_vsphere_vm(db, vm_request, env)
     else:
         raise ValueError(f"Unknown environment type: {env_type}")
@@ -252,9 +331,11 @@ async def provision_vm(request_id: int) -> None:
             vm_request.error_message = None
             await db.commit()
 
+            res_label = "Container" if getattr(vm_request, "resource_type", "vm") == "lxc" else "VM"
+
             await _jira_comment(
                 db, vm_request.jira_issue_key,
-                f"Provisioning started for VM '{vm_request.vm_name}'..."
+                f"Provisioning started for {res_label} '{vm_request.vm_name}'..."
             )
 
             env = await _get_environment(db, vm_request.environment_id)
@@ -263,13 +344,13 @@ async def provision_vm(request_id: int) -> None:
 
             logger.info(
                 f"Provisioning complete for request {request_id}: "
-                f"VM ID {vm_request.hypervisor_vm_id} on {vm_request.hypervisor_host}"
+                f"{res_label} ID {vm_request.hypervisor_vm_id} on {vm_request.hypervisor_host}"
             )
 
             await _jira_comment(
                 db, vm_request.jira_issue_key,
-                f"VM provisioned successfully.\n"
-                f"VM ID: {vm_request.hypervisor_vm_id or vm_request.proxmox_vmid}\n"
+                f"{res_label} provisioned successfully.\n"
+                f"{res_label} ID: {vm_request.hypervisor_vm_id or vm_request.proxmox_vmid}\n"
                 f"Host: {vm_request.hypervisor_host or vm_request.proxmox_node}\n"
                 f"IP: {vm_request.ip_address or 'N/A'}"
             )

@@ -6,12 +6,15 @@ export type RequestStatus =
   | 'provisioning_failed'
   | 'completed'
 
+export type ResourceType = 'vm' | 'lxc'
+
 export interface VMRequest {
   id: number
   vm_name: string
   description: string | null
   requestor_name: string
   requestor_email: string
+  resource_type: ResourceType
   workload_type: string
   os_template: string
   tshirt_size: string
@@ -29,6 +32,8 @@ export interface VMRequest {
   environment_id: number | null
   environment_name: string | null
   deployment_id: number | null
+  mtu: number | null
+  enable_ssh_root: boolean | null
   error_message: string | null
   created_at: string
   updated_at: string
@@ -51,6 +56,7 @@ export interface Deployment {
   description: string | null
   requestor_name: string
   requestor_email: string
+  resource_type: ResourceType
   workload_type: string
   environment_id: number | null
   environment_name: string | null
@@ -70,6 +76,7 @@ export interface DeploymentListItem {
   name: string
   requestor_name: string
   requestor_email: string
+  resource_type: ResourceType
   workload_type: string
   environment_name: string | null
   status: DeploymentStatus
@@ -141,6 +148,7 @@ export interface OSTemplate {
   node: string
   cloud_init: boolean
   os_family?: string
+  template_type?: string
 }
 
 export type OSTemplates = Record<string, OSTemplate>
@@ -155,6 +163,7 @@ export interface PVETemplate {
   environment_id?: number | null
   environment_name?: string | null
   template_ref?: string | null
+  template_type?: string
 }
 
 export interface OSTemplateMapping {
@@ -164,6 +173,7 @@ export interface OSTemplateMapping {
   vmid: number | null
   node: string | null
   template_ref: string | null
+  template_type: string
   os_family: 'linux' | 'windows'
   cloud_init: boolean
   enabled: boolean

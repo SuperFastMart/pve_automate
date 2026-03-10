@@ -38,11 +38,13 @@ async def get_tshirt_sizes(
 @router.get("/os-templates")
 async def get_os_templates(
     environment_id: int | None = None,
+    template_type: str | None = None,
     user: AuthenticatedUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Return OS templates, optionally filtered by environment.
+    """Return OS templates, optionally filtered by environment and template_type.
 
+    template_type: "vm" or "lxc" — filters templates by type.
     When environment_id is provided, returns templates for that environment
     plus global templates (environment_id IS NULL), with environment-specific
     templates taking priority over global ones for the same key.
@@ -52,6 +54,9 @@ async def get_os_templates(
         .where(OSTemplateMapping.enabled == True)
         .order_by(OSTemplateMapping.os_family, OSTemplateMapping.display_name)
     )
+
+    if template_type:
+        query = query.where(OSTemplateMapping.template_type == template_type)
 
     if environment_id is not None:
         from sqlalchemy import or_
@@ -76,6 +81,7 @@ async def get_os_templates(
                     "node": m.node,
                     "cloud_init": m.cloud_init,
                     "os_family": m.os_family,
+                    "template_type": getattr(m, "template_type", "vm") or "vm",
                 }
         for m in mappings:
             if m.environment_id is not None:
@@ -85,6 +91,7 @@ async def get_os_templates(
                     "node": m.node,
                     "cloud_init": m.cloud_init,
                     "os_family": m.os_family,
+                    "template_type": getattr(m, "template_type", "vm") or "vm",
                 }
         return templates
 

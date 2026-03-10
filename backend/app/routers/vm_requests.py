@@ -61,6 +61,7 @@ async def create_vm_request(
         description=payload.description,
         requestor_name=user.name,
         requestor_email=user.email,
+        resource_type=payload.resource_type,
         workload_type=payload.workload_type,
         os_template=payload.os_template,
         tshirt_size=payload.tshirt_size,
@@ -70,6 +71,8 @@ async def create_vm_request(
         subnet_id=payload.subnet_id,
         environment_id=payload.environment_id,
         environment_name=environment_name,
+        mtu=payload.mtu,
+        enable_ssh_root=payload.enable_ssh_root,
         status=RequestStatus.PENDING_APPROVAL,
     )
 
@@ -108,10 +111,12 @@ async def create_vm_request(
             project_key = jira_settings.get("JIRA_PROJECT_KEY", "INFRA")
             issue_type = jira_settings.get("JIRA_ISSUE_TYPE", "Service Request")
 
-            summary = f"VM Request: {vm_request.vm_name}"
+            res_label = "LXC Container" if payload.resource_type == "lxc" else "VM"
+            summary = f"{res_label} Request: {vm_request.vm_name}"
             desc_lines = [
                 f"Requestor: {vm_request.requestor_name} ({vm_request.requestor_email})",
-                f"VM Name: {vm_request.vm_name}",
+                f"Type: {res_label}",
+                f"Name: {vm_request.vm_name}",
                 f"Workload Type: {vm_request.workload_type}",
                 f"OS Template: {vm_request.os_template}",
                 f"Size: {vm_request.tshirt_size} "

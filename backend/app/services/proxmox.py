@@ -153,3 +153,160 @@ class ProxmoxService:
                         "memory": vm.get("maxmem", 0),
                     })
         return templates
+
+    # ── LXC Container Methods ──────────────────────────────────────
+
+    def get_ct_templates(self) -> list[dict]:
+        """Get all CT templates (vztmpl) across all nodes/storage."""
+        ct_templates = []
+        seen = set()
+        for node_info in self.get_nodes():
+            node = node_info["node"]
+            try:
+                storages = self.proxmox.nodes(node).storage.get()
+            except Exception:
+                continue
+            for storage in storages:
+                storage_id = storage["storage"]
+                try:
+                    content = self.proxmox.nodes(node).storage(storage_id).content.get(
+                        content="vztmpl"
+                    )
+                except Exception:
+                    continue
+                for item in content:
+                    volid = item.get("volid", "")
+                    if volid in seen:
+                        continue
+                    seen.add(volid)
+                    # Filename from volid e.g. "local:vztmpl/ubuntu-24.04-standard_24.04-2_amd64.tar.zst"
+                    filename = volid.split("/")[-1] if "/" in volid else volid
+                    ct_templates.append({
+                        "template_ref": volid,
+                        "name": filename,
+                        "node": node,
+                        "status": "template",
+                        "disk_size": item.get("size", 0),
+                        "memory": 0,
+                    })
+        return ct_templates
+
+    def create_lxc(
+        self,
+        node: str,
+        vmid: int,
+        ostemplate: str,
+        hostname: str,
+        cores: int,
+        memory_mb: int,
+        disk_gb: int,
+        net_config: str,
+        nameserver: str | None = None,
+        searchdomain: str | None = None,
+        ssh_public_keys: str | None = None,
+        unprivileged: bool = True,
+        storage: str = "local-lvm",
+    ) -> str:
+        """Create an LXC container. Returns the UPID (task ID)."""
+        params = {
+            "vmid": vmid,
+            "ostemplate": ostemplate,
+            "hostname": hostname,
+            "cores": cores,
+            "memory": memory_mb,
+            "rootfs": f"{storage}:{disk_gb}",
+            "net0": net_config,
+            "unprivileged": 1 if unprivileged else 0,
+            "start": 0,
+        }
+        if nameserver:
+            params["nameserver"] = nameserver
+        if searchdomain:
+            params["searchdomain"] = searchdomain
+        if ssh_public_keys:
+            params["ssh-public-keys"] = ssh_public_keys
+        return self.proxmox.nodes(node).lxc.post(**params)
+
+    def resize_lxc(
+        self, node: str, vmid: int, cpu_cores: int, ram_mb: int, disk_gb: int
+    ):
+        """Resize CPU, memory, and disk for an LXC container."""
+        self.proxmox.nodes(node).lxc(vmid).config.put(
+            cores=cpu_cores,
+            memory=ram_mb,
+        )
+        # Resize rootfs if larger than current
+        config = self.proxmox.nodes(node).lxc(vmid).config.get()
+        import re
+        rootfs_val = str(config.get("rootfs", ""))
+        size_match = re.search(r"size=(\d+)G", rootfs_val)
+        current_gb = int(size_match.group(1)) if size_match else 0
+        if disk_gb > current_gb:
+            self.proxmox.nodes(node).lxc(vmid).resize.put(
+                disk="rootfs",
+                size=f"{disk_gb}G",
+            )
+
+    def start_lxc(self, node: str, vmid: int) -> str:
+        """Start an LXC container. Returns UPID."""
+        return self.proxmox.nodes(node).lxc(vmid).status.start.post()
+
+    def get_lxc_status(self, node: str, vmid: int) -> dict:
+        """Get the current status of an LXC container."""
+        return self.proxmox.nodes(node).lxc(vmid).status.current.get()
+
+    def exec_on_node(self, node: str, command: str, timeout: int = 30) -> str:
+        """SSH into a Proxmox node and execute a command via pct exec.
+
+        Uses the Proxmox API host and token credentials for SSH are NOT
+        available, so this requires the API user to have SSH access via
+        key-based auth from the machine running the backend.  For lab setups
+        using root@pam, the Proxmox nodes typically accept SSH from localhost
+        or via agent forwarding.
+
+        Alternatively, resolves the node's IP from the cluster and connects.
+        """
+        import paramiko
+
+        # Resolve node IP from cluster status
+        node_ip = None
+        try:
+            cluster_status = self.proxmox.cluster.status.get()
+            for member in cluster_status:
+                if member.get("name") == node and member.get("ip"):
+                    node_ip = member["ip"]
+                    break
+        except Exception:
+            pass
+
+        # Fall back to the API host itself (works for single-node or if API host IS the node)
+        if not node_ip:
+            node_ip = self.proxmox._store["host"]
+
+        client = paramiko.SSHClient()
+        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        try:
+            # Try key-based auth (agent or default keys)
+            client.connect(node_ip, username="root", timeout=timeout)
+            _, stdout, stderr = client.exec_command(command, timeout=timeout)
+            exit_code = stdout.channel.recv_exit_status()
+            output = stdout.read().decode().strip()
+            err_output = stderr.read().decode().strip()
+            if exit_code != 0:
+                logger.warning(f"Command on {node} returned {exit_code}: {err_output}")
+            return output
+        finally:
+            client.close()
+
+    def configure_lxc_ssh_root(self, node: str, vmid: int) -> None:
+        """Enable root SSH login inside a running LXC container."""
+        commands = [
+            f"pct exec {vmid} -- sed -i 's/^#*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config",
+            f"pct exec {vmid} -- systemctl restart sshd || pct exec {vmid} -- service ssh restart",
+        ]
+        for cmd in commands:
+            try:
+                self.exec_on_node(node, cmd)
+            except Exception as e:
+                logger.warning(f"Failed to run '{cmd}' on {node}: {e}")
+        logger.info(f"Configured SSH root login for LXC {vmid} on {node}")

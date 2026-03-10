@@ -6,6 +6,7 @@ import { useOSTemplates, useWorkloadTypes, useTShirtSizes } from '../hooks/useVM
 import { getSubnets, getLocations, getEnvironments } from '../api/client'
 import type { DeploymentVMPayload } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
+import type { ResourceType } from '../types'
 
 interface VMEntry {
   vm_name: string
@@ -16,6 +17,8 @@ interface VMEntry {
   cpu_cores: string
   ram_mb: string
   disk_gb: string
+  mtu: string
+  enable_ssh_root: boolean
 }
 
 const emptyVM: VMEntry = {
@@ -27,9 +30,15 @@ const emptyVM: VMEntry = {
   cpu_cores: '',
   ram_mb: '',
   disk_gb: '',
+  mtu: '',
+  enable_ssh_root: true,
 }
 
-export default function DeploymentForm() {
+interface DeploymentFormProps {
+  resourceType: ResourceType
+}
+
+export default function DeploymentForm({ resourceType }: DeploymentFormProps) {
   const navigate = useNavigate()
   const { user } = useAuth()
   const createDeployment = useCreateDeployment()
@@ -39,6 +48,9 @@ export default function DeploymentForm() {
   const { data: locations } = useQuery({ queryKey: ['locations'], queryFn: getLocations })
   const { data: environments } = useQuery({ queryKey: ['environments'], queryFn: () => getEnvironments() })
 
+  const isLXC = resourceType === 'lxc'
+  const itemLabel = isLXC ? 'Container' : 'VM'
+
   // Top-level fields
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
@@ -46,10 +58,12 @@ export default function DeploymentForm() {
   const [selectedLocation, setSelectedLocation] = useState('')
   const [selectedEnvironment, setSelectedEnvironment] = useState('')
   const environmentId = selectedEnvironment ? Number(selectedEnvironment) : undefined
-  const { data: templates, isLoading: templatesLoading } = useOSTemplates(environmentId)
+  const { data: templates, isLoading: templatesLoading } = useOSTemplates(environmentId, resourceType)
 
   // Filter environments and subnets by location
+  // LXC is Proxmox-only — also filter out non-Proxmox environments
   const filteredEnvironments = environments?.filter((e) => {
+    if (isLXC && e.environment_type && e.environment_type !== 'proxmox') return false
     if (!selectedLocation) return true
     return e.location_id !== null && String(e.location_id) === selectedLocation
   })
@@ -62,6 +76,11 @@ export default function DeploymentForm() {
   // VM list
   const [vms, setVms] = useState<VMEntry[]>([{ ...emptyVM }])
   const [errors, setErrors] = useState<string[]>([])
+
+  // Reset templates when resource type changes
+  useEffect(() => {
+    setVms(prev => prev.map(vm => ({ ...vm, os_template: '' })))
+  }, [resourceType])
 
   // When location changes, reset environment if it no longer matches
   useEffect(() => {
@@ -102,7 +121,7 @@ export default function DeploymentForm() {
     }
   }
 
-  const updateVM = (index: number, field: keyof VMEntry, value: string) => {
+  const updateVM = (index: number, field: keyof VMEntry, value: string | boolean) => {
     const updated = [...vms]
     updated[index] = { ...updated[index], [field]: value }
     setVms(updated)
@@ -116,14 +135,17 @@ export default function DeploymentForm() {
     if (!workloadType) errs.push('Workload type is required')
 
     vms.forEach((vm, i) => {
-      const label = `VM ${i + 1}`
-      if (!vm.vm_name.trim()) errs.push(`${label}: VM name is required`)
-      if (!vm.os_template) errs.push(`${label}: OS template is required`)
+      const label = `${itemLabel} ${i + 1}`
+      if (!vm.vm_name.trim()) errs.push(`${label}: Name is required`)
+      if (!vm.os_template) errs.push(`${label}: ${isLXC ? 'CT template' : 'OS template'} is required`)
       if (!vm.tshirt_size) errs.push(`${label}: Size is required`)
       if (vm.tshirt_size === 'Custom') {
         if (!vm.cpu_cores) errs.push(`${label}: CPU cores required for custom size`)
         if (!vm.ram_mb) errs.push(`${label}: RAM required for custom size`)
         if (!vm.disk_gb) errs.push(`${label}: Disk required for custom size`)
+      }
+      if (isLXC && vm.mtu && (Number(vm.mtu) < 68 || Number(vm.mtu) > 65535)) {
+        errs.push(`${label}: MTU must be between 68 and 65535`)
       }
     })
 
@@ -152,12 +174,15 @@ export default function DeploymentForm() {
             disk_gb: Number(vm.disk_gb),
           }
         : {}),
+      ...(isLXC && vm.mtu ? { mtu: Number(vm.mtu) } : {}),
+      ...(isLXC ? { enable_ssh_root: vm.enable_ssh_root } : {}),
     }))
 
     const result = await createDeployment.mutateAsync({
       name,
       ...(description ? { description } : {}),
       workload_type: workloadType,
+      resource_type: resourceType,
       ...(selectedEnvironment ? { environment_id: Number(selectedEnvironment) } : {}),
       vms: vmPayloads,
     })
@@ -193,7 +218,7 @@ export default function DeploymentForm() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
-                placeholder="VBR Infrastructure"
+                placeholder={isLXC ? 'Docker Host Cluster' : 'VBR Infrastructure'}
               />
             </div>
             <div>
@@ -266,11 +291,11 @@ export default function DeploymentForm() {
         </div>
       </div>
 
-      {/* VM List */}
+      {/* VM/Container List */}
       <div className="bg-white rounded-lg shadow p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-gray-900">
-            Virtual Machines ({vms.length})
+            {isLXC ? 'Containers' : 'Virtual Machines'} ({vms.length})
           </h2>
           <button
             type="button"
@@ -278,7 +303,7 @@ export default function DeploymentForm() {
             disabled={vms.length >= 20}
             className="px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:opacity-50"
           >
-            + Add VM
+            + Add {itemLabel}
           </button>
         </div>
 
@@ -286,7 +311,7 @@ export default function DeploymentForm() {
           {vms.map((vm, index) => (
             <div key={index} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-gray-700">VM {index + 1}</h3>
+                <h3 className="text-sm font-semibold text-gray-700">{itemLabel} {index + 1}</h3>
                 {vms.length > 1 && (
                   <button
                     type="button"
@@ -300,23 +325,27 @@ export default function DeploymentForm() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">VM Name</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    {isLXC ? 'Container Name' : 'VM Name'}
+                  </label>
                   <input
                     value={vm.vm_name}
                     onChange={(e) => updateVM(index, 'vm_name', e.target.value)}
                     className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:ring-indigo-500"
-                    placeholder="app-server-01"
+                    placeholder={isLXC ? 'docker-host-01' : 'app-server-01'}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Operating System</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    {isLXC ? 'CT Template' : 'Operating System'}
+                  </label>
                   <select
                     value={vm.os_template}
                     onChange={(e) => updateVM(index, 'os_template', e.target.value)}
                     className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:ring-indigo-500"
                   >
-                    <option value="">Select OS...</option>
+                    <option value="">{isLXC ? 'Select template...' : 'Select OS...'}</option>
                     {templateEntries.map(([key, tmpl]) => (
                       <option key={key} value={key}>{tmpl.display_name}</option>
                     ))}
@@ -396,6 +425,36 @@ export default function DeploymentForm() {
                 </div>
               )}
 
+              {/* LXC-specific: Container Options */}
+              {isLXC && (
+                <div className="mt-3 p-3 bg-amber-50 rounded-md border border-amber-200">
+                  <h4 className="text-xs font-semibold text-amber-800 mb-2">Container Options</h4>
+                  <div className="flex flex-wrap items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs font-medium text-gray-600 whitespace-nowrap">MTU Override</label>
+                      <input
+                        type="number"
+                        value={vm.mtu}
+                        onChange={(e) => updateVM(index, 'mtu', e.target.value)}
+                        min={68} max={65535}
+                        className="w-24 rounded-md border border-gray-300 px-2 py-1 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                        placeholder="Inherit"
+                      />
+                      <span className="text-xs text-gray-400">Leave blank to inherit from host</span>
+                    </div>
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={vm.enable_ssh_root}
+                        onChange={(e) => updateVM(index, 'enable_ssh_root', e.target.checked)}
+                        className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <span className="text-xs font-medium text-gray-600">Enable root SSH login</span>
+                    </label>
+                  </div>
+                </div>
+              )}
+
               {/* Optional description */}
               <div className="mt-3">
                 <label className="block text-xs font-medium text-gray-600 mb-1">Description (optional)</label>
@@ -403,7 +462,7 @@ export default function DeploymentForm() {
                   value={vm.description}
                   onChange={(e) => updateVM(index, 'description', e.target.value)}
                   className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:ring-indigo-500"
-                  placeholder="Application server"
+                  placeholder={isLXC ? 'Docker host' : 'Application server'}
                 />
               </div>
             </div>
@@ -436,7 +495,9 @@ export default function DeploymentForm() {
           disabled={createDeployment.isPending}
           className="px-6 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {createDeployment.isPending ? 'Submitting...' : `Submit Deployment (${vms.length} VM${vms.length > 1 ? 's' : ''})`}
+          {createDeployment.isPending
+            ? 'Submitting...'
+            : `Submit Deployment (${vms.length} ${itemLabel}${vms.length > 1 ? 's' : ''})`}
         </button>
       </div>
 

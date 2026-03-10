@@ -1,7 +1,7 @@
 import enum
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, Enum, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Column, DateTime, Enum, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -30,6 +30,7 @@ class VMRequest(Base):
     description = Column(Text, nullable=True)
     requestor_name = Column(String(255), nullable=False)
     requestor_email = Column(String(255), nullable=False)
+    resource_type = Column(String(10), nullable=False, default="vm")  # "vm" or "lxc"
     workload_type = Column(String(50), nullable=False)
     os_template = Column(String(100), nullable=False)
     tshirt_size = Column(String(10), nullable=False)
@@ -58,6 +59,10 @@ class VMRequest(Base):
     environment_id = Column(Integer, ForeignKey("pve_environments.id"), nullable=True)
     environment_name = Column(String(200), nullable=True)
     deployment_id = Column(Integer, ForeignKey("deployments.id"), nullable=True)
+
+    # LXC-specific options
+    mtu = Column(Integer, nullable=True)  # MTU override (null = inherit from host)
+    enable_ssh_root = Column(Boolean, nullable=True)  # Enable PermitRootLogin in sshd_config
 
     # Relationships
     deployment = relationship("Deployment", back_populates="vm_requests")

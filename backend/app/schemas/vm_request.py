@@ -12,9 +12,10 @@ class VMRequestCreate(BaseModel):
         min_length=1,
         max_length=63,
         pattern=r"^[a-zA-Z0-9][a-zA-Z0-9\-]*$",
-        description="VM hostname (alphanumeric and hyphens, must start with letter/number)",
+        description="Hostname (alphanumeric and hyphens, must start with letter/number)",
     )
     description: Optional[str] = None
+    resource_type: str = Field("vm", pattern=r"^(vm|lxc)$")
     workload_type: str
     os_template: str
     tshirt_size: str = Field(..., pattern=r"^(XS|S|M|L|XL|Custom)$")
@@ -25,6 +26,10 @@ class VMRequestCreate(BaseModel):
     cpu_cores: Optional[int] = Field(None, ge=1, le=128)
     ram_mb: Optional[int] = Field(None, ge=512, le=524288)
     disk_gb: Optional[int] = Field(None, ge=8, le=4096)
+
+    # LXC-specific options
+    mtu: Optional[int] = Field(None, ge=576, le=9216)
+    enable_ssh_root: Optional[bool] = None
 
     @model_validator(mode="after")
     def validate_custom_size(self):
@@ -47,6 +52,7 @@ class VMRequestResponse(BaseModel):
     description: Optional[str]
     requestor_name: str
     requestor_email: str
+    resource_type: str = "vm"
     workload_type: str
     os_template: str
     tshirt_size: str
@@ -66,6 +72,8 @@ class VMRequestResponse(BaseModel):
     environment_id: Optional[int]
     environment_name: Optional[str]
     deployment_id: Optional[int]
+    mtu: Optional[int] = None
+    enable_ssh_root: Optional[bool] = None
     error_message: Optional[str]
     created_at: datetime
     updated_at: datetime

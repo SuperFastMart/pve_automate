@@ -31,6 +31,7 @@ class Deployment(Base):
     description = Column(Text, nullable=True)
     requestor_name = Column(String(255), nullable=False)
     requestor_email = Column(String(255), nullable=False)
+    resource_type = Column(String(10), nullable=False, default="vm")  # "vm" or "lxc"
     workload_type = Column(String(50), nullable=False)
 
     # Environment (denormalized)

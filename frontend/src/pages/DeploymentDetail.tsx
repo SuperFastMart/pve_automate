@@ -49,6 +49,11 @@ export default function DeploymentDetail() {
       <div className="flex items-center gap-4 mb-6">
         <h1 className="text-2xl font-bold text-gray-900">{deployment.name}</h1>
         <DeploymentStatusBadge status={deployment.status} />
+        {deployment.resource_type === 'lxc' && (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-100 text-teal-800">
+            LXC
+          </span>
+        )}
       </div>
 
       {deployment.error_message && (
@@ -82,9 +87,17 @@ export default function DeploymentDetail() {
                 <dd className="text-sm text-gray-900">{deployment.description}</dd>
               </div>
             )}
+            {deployment.resource_type && (
+              <div>
+                <dt className="text-sm font-medium text-gray-500">Resource Type</dt>
+                <dd className="text-sm text-gray-900">{deployment.resource_type === 'lxc' ? 'LXC Container' : 'Virtual Machine'}</dd>
+              </div>
+            )}
             <div>
-              <dt className="text-sm font-medium text-gray-500">VMs</dt>
-              <dd className="text-sm text-gray-900">{deployment.vm_requests.length} virtual machines</dd>
+              <dt className="text-sm font-medium text-gray-500">{deployment.resource_type === 'lxc' ? 'Containers' : 'VMs'}</dt>
+              <dd className="text-sm text-gray-900">
+                {deployment.vm_requests.length} {deployment.resource_type === 'lxc' ? 'container' : 'virtual machine'}{deployment.vm_requests.length !== 1 ? 's' : ''}
+              </dd>
             </div>
           </dl>
         </div>
@@ -112,13 +125,19 @@ export default function DeploymentDetail() {
       {/* VM List */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">Virtual Machines</h2>
+          <h2 className="text-lg font-semibold text-gray-900">
+            {deployment.resource_type === 'lxc' ? 'Containers' : 'Virtual Machines'}
+          </h2>
         </div>
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">VM Name</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">OS</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                {deployment.resource_type === 'lxc' ? 'Container' : 'VM Name'}
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                {deployment.resource_type === 'lxc' ? 'Template' : 'OS'}
+              </th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Size</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">VM ID</th>

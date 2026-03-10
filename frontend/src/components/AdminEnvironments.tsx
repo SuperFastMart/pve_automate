@@ -171,8 +171,18 @@ export default function AdminEnvironments() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Name (slug)</label>
-          <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="prod" className={inputCls} />
-          <p className="mt-0.5 text-xs text-gray-400">Lowercase identifier (e.g. dev, prod)</p>
+          <input
+            type="text"
+            value={form.name}
+            onChange={(e) => {
+              // Auto-sanitize: lowercase, replace spaces/invalid chars with hyphens
+              const sanitized = e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '-').replace(/-+/g, '-')
+              setForm({ ...form, name: sanitized })
+            }}
+            placeholder="prod-esxi"
+            className={inputCls}
+          />
+          <p className="mt-0.5 text-xs text-gray-400">Lowercase letters, numbers, hyphens, underscores only</p>
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Display Name</label>

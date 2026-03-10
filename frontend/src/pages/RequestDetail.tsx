@@ -9,14 +9,19 @@ export default function RequestDetail() {
   if (isLoading) return <p className="text-gray-500">Loading...</p>
   if (error || !req) return <p className="text-red-600">Request not found.</p>
 
+  const isLXC = req.resource_type === 'lxc'
+
   const details = [
-    { label: 'VM Name', value: req.vm_name },
+    { label: isLXC ? 'Container Name' : 'VM Name', value: req.vm_name },
+    { label: 'Resource Type', value: isLXC ? 'LXC Container' : 'Virtual Machine' },
     { label: 'Description', value: req.description || '-' },
     { label: 'Requestor', value: `${req.requestor_name} (${req.requestor_email})` },
     { label: 'Workload Type', value: req.workload_type },
-    { label: 'Operating System', value: req.os_template },
+    { label: isLXC ? 'CT Template' : 'Operating System', value: req.os_template },
     { label: 'Size', value: `${req.tshirt_size} (${req.cpu_cores} vCPU, ${req.ram_mb >= 1024 ? `${req.ram_mb / 1024} GB` : `${req.ram_mb} MB`} RAM, ${req.disk_gb} GB disk)` },
     ...(req.environment_name ? [{ label: 'Environment', value: req.environment_name }] : []),
+    ...(isLXC && req.mtu ? [{ label: 'MTU', value: String(req.mtu) }] : []),
+    ...(isLXC ? [{ label: 'Root SSH Login', value: req.enable_ssh_root ? 'Enabled' : 'Disabled' }] : []),
   ]
 
   const provisioningDetails = [

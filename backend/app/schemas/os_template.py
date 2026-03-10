@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 
 
 class PVETemplateResponse(BaseModel):
-    """A template VM discovered from a hypervisor (Proxmox or vSphere)."""
+    """A template discovered from a hypervisor (Proxmox QEMU, CT, or vSphere)."""
     vmid: Optional[int] = None
     name: str
     node: Optional[str] = None
@@ -14,7 +14,8 @@ class PVETemplateResponse(BaseModel):
     memory: int
     environment_id: Optional[int] = None
     environment_name: Optional[str] = None
-    template_ref: Optional[str] = None  # vSphere template path/name
+    template_ref: Optional[str] = None
+    template_type: str = "vm"  # "vm" or "lxc"
 
 
 class OSTemplateMappingCreate(BaseModel):
@@ -23,6 +24,7 @@ class OSTemplateMappingCreate(BaseModel):
     vmid: Optional[int] = None
     node: Optional[str] = None
     template_ref: Optional[str] = None
+    template_type: str = Field("vm", pattern=r"^(vm|lxc)$")
     os_family: str = Field(..., pattern=r"^(linux|windows)$")
     cloud_init: bool = True
     enabled: bool = True
@@ -34,6 +36,8 @@ class OSTemplateMappingUpdate(BaseModel):
     display_name: Optional[str] = Field(None, min_length=1, max_length=200)
     vmid: Optional[int] = None
     node: Optional[str] = None
+    template_ref: Optional[str] = None
+    template_type: Optional[str] = Field(None, pattern=r"^(vm|lxc)$")
     os_family: Optional[str] = Field(None, pattern=r"^(linux|windows)$")
     cloud_init: Optional[bool] = None
     enabled: Optional[bool] = None
@@ -47,6 +51,7 @@ class OSTemplateMappingResponse(BaseModel):
     vmid: Optional[int] = None
     node: Optional[str] = None
     template_ref: Optional[str] = None
+    template_type: str = "vm"
     os_family: str
     cloud_init: bool
     enabled: bool

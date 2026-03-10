@@ -89,10 +89,12 @@ async def list_all_settings(db: AsyncSession = Depends(get_db)):
 @router.get("/templates/scan", response_model=list[PVETemplateResponse])
 async def scan_templates(
     environment_id: int | None = None,
+    template_type: str | None = None,
     db: AsyncSession = Depends(get_db),
 ):
-    """Scan hypervisor environments for template VMs.
+    """Scan hypervisor environments for templates.
 
+    template_type: "vm" (QEMU templates), "lxc" (CT templates), or None (both).
     Dispatches to Proxmox or vSphere depending on environment type.
     If environment_id is given, scan only that environment.
     If omitted, scan ALL enabled environments.
@@ -107,7 +109,7 @@ async def scan_templates(
             env = result.scalar_one_or_none()
             if not env:
                 raise HTTPException(status_code=404, detail="Environment not found")
-            templates = await _scan_single_env(env)
+            templates = await _scan_single_env(env, template_type)
             return templates
         else:
             result = await db.execute(
@@ -124,7 +126,7 @@ async def scan_templates(
             errors = []
             for env in environments:
                 try:
-                    templates = await _scan_single_env(env)
+                    templates = await _scan_single_env(env, template_type)
                     all_templates.extend(templates)
                 except Exception as e:
                     errors.append(f"{env.display_name}: {e}")
@@ -141,7 +143,7 @@ async def scan_templates(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-async def _scan_single_env(env) -> list[dict]:
+async def _scan_single_env(env, template_type: str | None = None) -> list[dict]:
     """Scan a single environment for templates, dispatching by type."""
     if env.environment_type == "proxmox":
         from app.services.proxmox import ProxmoxService
@@ -153,8 +155,20 @@ async def _scan_single_env(env) -> list[dict]:
             token_value=env.pve_token_value,
             verify_ssl=env.pve_verify_ssl,
         )
-        templates = await asyncio.to_thread(pve.get_templates)
+        templates = []
+        if template_type in (None, "vm"):
+            vm_templates = await asyncio.to_thread(pve.get_templates)
+            for t in vm_templates:
+                t["template_type"] = "vm"
+            templates.extend(vm_templates)
+        if template_type in (None, "lxc"):
+            ct_templates = await asyncio.to_thread(pve.get_ct_templates)
+            for t in ct_templates:
+                t["template_type"] = "lxc"
+            templates.extend(ct_templates)
     elif env.environment_type in ("esxi", "vcenter"):
+        if template_type == "lxc":
+            return []  # LXC not supported on vSphere
         from app.services.vsphere import VSphereService
 
         vs = VSphereService(
@@ -168,6 +182,8 @@ async def _scan_single_env(env) -> list[dict]:
         )
         templates = await asyncio.to_thread(vs.get_templates)
         await asyncio.to_thread(vs.disconnect)
+        for t in templates:
+            t["template_type"] = "vm"
     else:
         raise ValueError(f"Unknown environment type: {env.environment_type}")
 

@@ -8,12 +8,13 @@ import { useCreateVMRequest, useTShirtSizes, useOSTemplates, useWorkloadTypes } 
 import { getSubnets, getLocations, getEnvironments } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
 import TShirtSizeCard from './TShirtSizeCard'
+import type { ResourceType } from '../types'
 
 const schema = z.object({
   vm_name: z
     .string()
-    .min(1, 'VM name is required')
-    .max(63, 'VM name must be 63 characters or less')
+    .min(1, 'Name is required')
+    .max(63, 'Name must be 63 characters or less')
     .regex(/^[a-zA-Z0-9][a-zA-Z0-9-]*$/, 'Must start with a letter/number, only letters, numbers and hyphens allowed'),
   description: z.string().optional(),
   workload_type: z.string().min(1, 'Workload type is required'),
@@ -26,7 +27,11 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>
 
-export default function VMRequestForm() {
+interface Props {
+  resourceType: ResourceType
+}
+
+export default function VMRequestForm({ resourceType }: Props) {
   const navigate = useNavigate()
   const { user } = useAuth()
   const createRequest = useCreateVMRequest()
@@ -37,11 +42,19 @@ export default function VMRequestForm() {
   const { data: environments } = useQuery({ queryKey: ['environments'], queryFn: () => getEnvironments() })
   const [selectedEnvironment, setSelectedEnvironment] = useState<string>('')
   const environmentId = selectedEnvironment ? Number(selectedEnvironment) : undefined
-  const { data: templates, isLoading: templatesLoading } = useOSTemplates(environmentId)
+  const { data: templates, isLoading: templatesLoading } = useOSTemplates(environmentId, resourceType)
   const [selectedLocation, setSelectedLocation] = useState<string>('')
 
-  // Filter environments by selected location
+  // LXC-specific state
+  const [mtu, setMtu] = useState<string>('')
+  const [enableSshRoot, setEnableSshRoot] = useState(true)
+
+  const isLxc = resourceType === 'lxc'
+  const nameLabel = isLxc ? 'Container Name' : 'VM Name'
+
+  // Filter environments by selected location — only show Proxmox envs for LXC
   const filteredEnvironments = environments?.filter((e) => {
+    if (isLxc && e.environment_type !== 'proxmox') return false
     if (!selectedLocation) return true
     return e.location_id !== null && String(e.location_id) === selectedLocation
   })
@@ -60,6 +73,11 @@ export default function VMRequestForm() {
     }
   }, [selectedLocation]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Reset OS template when resource type changes
+  useEffect(() => {
+    setValue('os_template', '')
+  }, [resourceType]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const [selectedSubnet, setSelectedSubnet] = useState<string>('')
   const [subnetSearch, setSubnetSearch] = useState('')
   const [subnetDropdownOpen, setSubnetDropdownOpen] = useState(false)
@@ -69,7 +87,7 @@ export default function VMRequestForm() {
   useEffect(() => {
     const envs = filteredEnvironments
     if (envs && envs.length > 0 && !selectedEnvironment) {
-      const defaultEnv = envs.find((e) => e.is_default)
+      const defaultEnv = envs.find((e: { is_default: boolean }) => e.is_default)
       if (defaultEnv) {
         setSelectedEnvironment(String(defaultEnv.id))
       } else if (envs.length === 1) {
@@ -137,6 +155,7 @@ export default function VMRequestForm() {
 
     const payload = {
       ...rest,
+      resource_type: resourceType,
       ...(selectedEnvironment ? { environment_id: Number(selectedEnvironment) } : {}),
       ...(selectedSubnet ? { subnet_id: Number(selectedSubnet) } : {}),
       ...(data.tshirt_size === 'Custom' ? {
@@ -144,6 +163,8 @@ export default function VMRequestForm() {
         ram_mb: Number(ram_mb),
         disk_gb: Number(disk_gb),
       } : {}),
+      ...(isLxc && mtu ? { mtu: Number(mtu) } : {}),
+      ...(isLxc ? { enable_ssh_root: enableSshRoot } : {}),
     }
     const result = await createRequest.mutateAsync(payload)
     navigate(`/request/${result.id}`)
@@ -212,7 +233,7 @@ export default function VMRequestForm() {
                   ))}
                 </select>
                 <p className="mt-1 text-xs text-gray-400">
-                  Select the hypervisor environment where this VM will be deployed
+                  Select the hypervisor environment where this {isLxc ? 'container' : 'VM'} will be deployed
                 </p>
               </div>
             )}
@@ -220,17 +241,19 @@ export default function VMRequestForm() {
         </div>
       )}
 
-      {/* VM Details */}
+      {/* VM/Container Details */}
       <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">VM Details</h2>
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">
+          {isLxc ? 'Container Details' : 'VM Details'}
+        </h2>
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">VM Name</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{nameLabel}</label>
               <input
                 {...register('vm_name')}
                 className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
-                placeholder="app-server-01"
+                placeholder={isLxc ? 'web-proxy-01' : 'app-server-01'}
               />
               {errors.vm_name && (
                 <p className="mt-1 text-sm text-red-600">{errors.vm_name.message}</p>
@@ -256,12 +279,14 @@ export default function VMRequestForm() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Operating System</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {isLxc ? 'CT Template' : 'Operating System'}
+            </label>
             <select
               {...register('os_template')}
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
             >
-              <option value="">Select operating system...</option>
+              <option value="">{isLxc ? 'Select CT template...' : 'Select operating system...'}</option>
               {templates && (() => {
                 const entries = Object.entries(templates)
                 const hasOsFamily = entries.some(([, t]) => t.os_family)
@@ -385,15 +410,62 @@ export default function VMRequestForm() {
               {...register('description')}
               rows={3}
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
-              placeholder="What will this VM be used for?"
+              placeholder={isLxc ? 'What will this container be used for?' : 'What will this VM be used for?'}
             />
           </div>
         </div>
       </div>
 
+      {/* LXC-Specific Options */}
+      {isLxc && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Container Options</h2>
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  MTU Override
+                </label>
+                <input
+                  type="number"
+                  value={mtu}
+                  onChange={(e) => setMtu(e.target.value)}
+                  min={576}
+                  max={9216}
+                  placeholder="Inherit from host"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                />
+                <p className="mt-1 text-xs text-gray-400">
+                  Leave empty to inherit from the host bridge. Set to 9000 for jumbo frames.
+                </p>
+              </div>
+              <div className="flex items-center gap-3 pt-6">
+                <input
+                  type="checkbox"
+                  id="enable-ssh-root"
+                  checked={enableSshRoot}
+                  onChange={(e) => setEnableSshRoot(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                />
+                <div>
+                  <label htmlFor="enable-ssh-root" className="text-sm font-medium text-gray-700">
+                    Enable root SSH login
+                  </label>
+                  <p className="text-xs text-gray-400">
+                    Configures PermitRootLogin in sshd_config after creation
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* T-Shirt Size Selector */}
       <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">VM Size</h2>
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">
+          {isLxc ? 'Container Size' : 'VM Size'}
+        </h2>
         <input type="hidden" {...register('tshirt_size')} />
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
           {sizes &&

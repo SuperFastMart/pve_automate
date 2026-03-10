@@ -58,6 +58,7 @@ async def create_deployment(
         description=payload.description,
         requestor_name=user.name,
         requestor_email=user.email,
+        resource_type=payload.resource_type,
         workload_type=payload.workload_type,
         environment_id=payload.environment_id,
         environment_name=environment_name,
@@ -94,6 +95,7 @@ async def create_deployment(
             description=vm.description,
             requestor_name=user.name,
             requestor_email=user.email,
+            resource_type=payload.resource_type,
             workload_type=payload.workload_type,
             os_template=vm.os_template,
             tshirt_size=vm.tshirt_size,
@@ -104,6 +106,8 @@ async def create_deployment(
             environment_id=payload.environment_id,
             environment_name=environment_name,
             deployment_id=deployment.id,
+            mtu=vm.mtu,
+            enable_ssh_root=vm.enable_ssh_root,
             status=RequestStatus.PENDING_APPROVAL,
         )
         db.add(vm_request)
@@ -235,6 +239,7 @@ async def list_deployments(
             name=d.name,
             requestor_name=d.requestor_name,
             requestor_email=d.requestor_email,
+            resource_type=getattr(d, "resource_type", "vm") or "vm",
             workload_type=d.workload_type,
             environment_name=d.environment_name,
             status=d.status,

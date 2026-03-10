@@ -21,6 +21,7 @@ class OSTemplateMapping(Base):
     vmid = Column(Integer, nullable=True)       # Proxmox template VMID
     node = Column(String(100), nullable=True)    # Proxmox source node
     template_ref = Column(String(500), nullable=True)  # vSphere template name/path
+    template_type = Column(String(10), nullable=False, default="vm")  # "vm" or "lxc"
     os_family = Column(String(20), nullable=False)  # "linux" or "windows"
     cloud_init = Column(Boolean, default=True, nullable=False)
     enabled = Column(Boolean, default=True, nullable=False)
