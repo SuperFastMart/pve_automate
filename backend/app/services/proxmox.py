@@ -290,13 +290,20 @@ class ProxmoxService:
         client = paramiko.SSHClient()
         client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         try:
-            # Explicitly locate the SSH key — systemd services may not have HOME set
-            key_path = pathlib.Path("/root/.ssh/id_ed25519")
-            if not key_path.exists():
-                key_path = pathlib.Path("/root/.ssh/id_rsa")
+            # Locate SSH key — service may run as www-data or root
+            key_path = None
+            for candidate in [
+                pathlib.Path("/var/www/.ssh/id_ed25519"),
+                pathlib.Path("/var/www/.ssh/id_rsa"),
+                pathlib.Path("/root/.ssh/id_ed25519"),
+                pathlib.Path("/root/.ssh/id_rsa"),
+            ]:
+                if candidate.exists():
+                    key_path = str(candidate)
+                    break
             client.connect(
                 node_ip, username="root", timeout=timeout,
-                key_filename=str(key_path) if key_path.exists() else None,
+                key_filename=key_path,
             )
             _, stdout, stderr = client.exec_command(command, timeout=timeout)
             exit_code = stdout.channel.recv_exit_status()
