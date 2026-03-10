@@ -130,9 +130,10 @@ async def send_vm_ready(request_id: int) -> None:
                 "vm_ready.html",
                 vm=vm,
             )
+            res_label = "Container" if getattr(vm, "resource_type", "vm") == "lxc" else "VM"
             await svc.send(
                 to=vm.requestor_email,
-                subject=f"VM Ready: {vm.vm_name}",
+                subject=f"{res_label} Ready: {vm.vm_name}",
                 html_body=html,
             )
     except Exception as e:

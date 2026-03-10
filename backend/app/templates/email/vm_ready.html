@@ -1,12 +1,14 @@
 {% extends "base.html" %}
-{% block title %}VM Ready{% endblock %}
+{% set is_lxc = vm.resource_type == 'lxc' %}
+{% set res_label = 'Container' if is_lxc else 'VM' %}
+{% block title %}{{ res_label }} Ready{% endblock %}
 {% block content %}
-<h2 style="margin:0 0 16px 0; color:#1e293b; font-size:18px;">Your VM is Ready</h2>
+<h2 style="margin:0 0 16px 0; color:#1e293b; font-size:18px;">Your {{ res_label }} is Ready</h2>
 <p style="margin:0 0 16px 0; color:#334155; font-size:14px; line-height:1.6;">
   Hi {{ vm.requestor_name }},
 </p>
 <p style="margin:0 0 24px 0; color:#334155; font-size:14px; line-height:1.6;">
-  Your VM has been provisioned and is now running.
+  Your {{ res_label | lower }} has been provisioned and is now running.
 </p>
 
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f0fdf4; border-radius:6px; border:1px solid #bbf7d0; margin-bottom:24px;">
@@ -14,21 +16,27 @@
     <td style="padding:16px;">
       <table role="presentation" width="100%" cellpadding="4" cellspacing="0">
         <tr>
-          <td style="color:#64748b; font-size:13px; width:140px; vertical-align:top;">VM Name</td>
+          <td style="color:#64748b; font-size:13px; width:140px; vertical-align:top;">{{ res_label }} Name</td>
           <td style="color:#1e293b; font-size:13px; font-weight:600;">{{ vm.vm_name }}</td>
         </tr>
         <tr>
-          <td style="color:#64748b; font-size:13px; vertical-align:top;">VMID</td>
-          <td style="color:#1e293b; font-size:13px;">{{ vm.proxmox_vmid }}</td>
+          <td style="color:#64748b; font-size:13px; vertical-align:top;">{{ res_label }} ID</td>
+          <td style="color:#1e293b; font-size:13px;">{{ vm.hypervisor_vm_id or vm.proxmox_vmid }}</td>
         </tr>
         <tr>
-          <td style="color:#64748b; font-size:13px; vertical-align:top;">Node</td>
-          <td style="color:#1e293b; font-size:13px;">{{ vm.proxmox_node }}</td>
+          <td style="color:#64748b; font-size:13px; vertical-align:top;">Host</td>
+          <td style="color:#1e293b; font-size:13px;">{{ vm.hypervisor_host or vm.proxmox_node }}</td>
         </tr>
         {% if vm.ip_address %}
         <tr>
           <td style="color:#64748b; font-size:13px; vertical-align:top;">IP Address</td>
           <td style="color:#1e293b; font-size:13px; font-weight:600;">{{ vm.ip_address }}</td>
+        </tr>
+        {% endif %}
+        {% if vm.ip_gateway %}
+        <tr>
+          <td style="color:#64748b; font-size:13px; vertical-align:top;">Gateway</td>
+          <td style="color:#1e293b; font-size:13px;">{{ vm.ip_gateway }}</td>
         </tr>
         {% endif %}
         <tr>
@@ -43,6 +51,27 @@
     </td>
   </tr>
 </table>
+
+{% if is_lxc and vm.root_password %}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#fef3c7; border-radius:6px; border:1px solid #fcd34d; margin-bottom:24px;">
+  <tr>
+    <td style="padding:16px;">
+      <p style="margin:0 0 8px 0; color:#92400e; font-size:13px; font-weight:600;">Root Credentials</p>
+      <table role="presentation" width="100%" cellpadding="4" cellspacing="0">
+        <tr>
+          <td style="color:#92400e; font-size:13px; width:140px; vertical-align:top;">Username</td>
+          <td style="color:#1e293b; font-size:13px; font-weight:600;">root</td>
+        </tr>
+        <tr>
+          <td style="color:#92400e; font-size:13px; vertical-align:top;">Password</td>
+          <td style="color:#1e293b; font-size:13px; font-weight:600; font-family:monospace;">{{ vm.root_password }}</td>
+        </tr>
+      </table>
+      <p style="margin:8px 0 0 0; color:#92400e; font-size:12px;">Please change this password after first login.</p>
+    </td>
+  </tr>
+</table>
+{% endif %}
 
 {% if vm.jira_issue_url %}
 <p style="margin:0 0 8px 0; color:#334155; font-size:14px;">
