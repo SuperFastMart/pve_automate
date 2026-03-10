@@ -385,6 +385,35 @@ async def retry_vm_request(
     return vm_request
 
 
+@router.delete("/{request_id}", status_code=204)
+async def delete_vm_request(
+    request_id: int,
+    user: AuthenticatedUser = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete a VM request (admin only). Releases phpIPAM IP if allocated."""
+    result = await db.execute(select(VMRequest).where(VMRequest.id == request_id))
+    vm_request = result.scalar_one_or_none()
+
+    if not vm_request:
+        raise HTTPException(status_code=404, detail="VM request not found")
+
+    # Release phpIPAM IP allocation if present
+    if vm_request.phpipam_address_id:
+        try:
+            ipam = await get_phpipam_service(db)
+            if ipam:
+                await ipam.release_ip(vm_request.phpipam_address_id)
+                await ipam.close()
+                logger.info(f"Released phpIPAM address ID {vm_request.phpipam_address_id}")
+        except Exception as e:
+            logger.warning(f"Failed to release phpIPAM address {vm_request.phpipam_address_id}: {e}")
+
+    await db.delete(vm_request)
+    await db.commit()
+    logger.info(f"Admin {user.email} deleted request {request_id} ({vm_request.vm_name})")
+
+
 async def _jira_comment(issue_key: str, comment: str) -> None:
     """Background task: add a comment to a Jira issue."""
     from app.database import async_session

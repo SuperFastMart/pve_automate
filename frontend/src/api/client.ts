@@ -128,6 +128,10 @@ export async function retryVMRequest(id: number): Promise<VMRequest> {
   return data
 }
 
+export async function deleteVMRequest(id: number): Promise<void> {
+  await api.delete(`/requests/${id}`)
+}
+
 // Settings API
 export async function getSettings(): Promise<SettingsGroup[]> {
   const { data } = await api.get<SettingsGroup[]>('/settings')
@@ -298,4 +302,8 @@ export async function rejectDeployment(id: number): Promise<Deployment> {
 export async function retryDeployment(id: number): Promise<Deployment> {
   const { data } = await api.post<Deployment>(`/deployments/${id}/retry`)
   return data
+}
+
+export async function deleteDeployment(id: number): Promise<void> {
+  await api.delete(`/deployments/${id}`)
 }

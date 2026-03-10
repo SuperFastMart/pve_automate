@@ -6,6 +6,7 @@ import {
   approveVMRequest,
   rejectVMRequest,
   retryVMRequest,
+  deleteVMRequest,
   getTShirtSizes,
   getOSTemplates,
   getWorkloadTypes,
@@ -91,6 +92,16 @@ export function useRetryVMRequest() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (id: number) => retryVMRequest(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vm-requests'] })
+    },
+  })
+}
+
+export function useDeleteVMRequest() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => deleteVMRequest(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vm-requests'] })
     },

@@ -431,6 +431,39 @@ async def retry_deployment(
     return deployment
 
 
+@router.delete("/{deployment_id}", status_code=204)
+async def delete_deployment(
+    deployment_id: int,
+    user: AuthenticatedUser = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete a deployment and all its VM requests (admin only). Releases phpIPAM IPs."""
+    result = await db.execute(
+        select(Deployment)
+        .options(selectinload(Deployment.vm_requests))
+        .where(Deployment.id == deployment_id)
+    )
+    deployment = result.scalar_one_or_none()
+    if not deployment:
+        raise HTTPException(status_code=404, detail="Deployment not found")
+
+    # Release phpIPAM IPs for all VMs
+    for vm_req in deployment.vm_requests:
+        if vm_req.phpipam_address_id:
+            try:
+                ipam = await get_phpipam_service(db)
+                if ipam:
+                    await ipam.release_ip(vm_req.phpipam_address_id)
+                    await ipam.close()
+            except Exception as e:
+                logger.warning(f"Failed to release phpIPAM address {vm_req.phpipam_address_id}: {e}")
+        await db.delete(vm_req)
+
+    await db.delete(deployment)
+    await db.commit()
+    logger.info(f"Admin {user.email} deleted deployment {deployment_id} ({deployment.name})")
+
+
 async def _jira_deployment_comment(issue_key: str, comment: str) -> None:
     """Background task: add a comment to a deployment Jira issue."""
     from app.database import async_session

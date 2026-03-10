@@ -1,10 +1,16 @@
-import { useParams, Link } from 'react-router-dom'
-import { useVMRequest } from '../hooks/useVMRequests'
+import { useState } from 'react'
+import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useVMRequest, useDeleteVMRequest } from '../hooks/useVMRequests'
+import { useAuth } from '../auth/AuthContext'
 import StatusBadge from '../components/StatusBadge'
 
 export default function RequestDetail() {
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
+  const { isAdmin } = useAuth()
   const { data: req, isLoading, error } = useVMRequest(Number(id))
+  const deleteRequest = useDeleteVMRequest()
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   if (isLoading) return <p className="text-gray-500">Loading...</p>
   if (error || !req) return <p className="text-red-600">Request not found.</p>
@@ -47,6 +53,39 @@ export default function RequestDetail() {
       <div className="flex items-center gap-4 mb-6">
         <h1 className="text-2xl font-bold text-gray-900">{req.vm_name}</h1>
         <StatusBadge status={req.status} />
+        {isAdmin && (
+          <div className="ml-auto">
+            {showDeleteConfirm ? (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600">Delete this request?</span>
+                <button
+                  onClick={() => {
+                    deleteRequest.mutate(Number(id), {
+                      onSuccess: () => navigate('/'),
+                    })
+                  }}
+                  disabled={deleteRequest.isPending}
+                  className="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+                >
+                  {deleteRequest.isPending ? 'Deleting...' : 'Confirm'}
+                </button>
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="px-3 py-1 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowDeleteConfirm(true)}
+                className="px-3 py-1 text-sm bg-red-100 text-red-700 rounded hover:bg-red-200"
+              >
+                Delete
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {req.error_message && (

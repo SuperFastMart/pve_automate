@@ -1,5 +1,7 @@
-import { useParams, Link } from 'react-router-dom'
-import { useDeployment } from '../hooks/useDeployments'
+import { useState } from 'react'
+import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useDeployment, useDeleteDeployment } from '../hooks/useDeployments'
+import { useAuth } from '../auth/AuthContext'
 import StatusBadge from '../components/StatusBadge'
 import type { DeploymentStatus } from '../types'
 
@@ -33,7 +35,11 @@ function DeploymentStatusBadge({ status }: { status: DeploymentStatus }) {
 
 export default function DeploymentDetail() {
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
+  const { isAdmin } = useAuth()
   const { data: deployment, isLoading, error } = useDeployment(Number(id))
+  const deleteDeployment = useDeleteDeployment()
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   if (isLoading) return <p className="text-gray-500">Loading...</p>
   if (error || !deployment) return <p className="text-red-600">Deployment not found.</p>
@@ -53,6 +59,39 @@ export default function DeploymentDetail() {
           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-100 text-teal-800">
             LXC
           </span>
+        )}
+        {isAdmin && (
+          <div className="ml-auto">
+            {showDeleteConfirm ? (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600">Delete this deployment?</span>
+                <button
+                  onClick={() => {
+                    deleteDeployment.mutate(Number(id), {
+                      onSuccess: () => navigate('/'),
+                    })
+                  }}
+                  disabled={deleteDeployment.isPending}
+                  className="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+                >
+                  {deleteDeployment.isPending ? 'Deleting...' : 'Confirm'}
+                </button>
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="px-3 py-1 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowDeleteConfirm(true)}
+                className="px-3 py-1 text-sm bg-red-100 text-red-700 rounded hover:bg-red-200"
+              >
+                Delete
+              </button>
+            )}
+          </div>
         )}
       </div>
 
