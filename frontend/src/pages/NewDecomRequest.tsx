@@ -10,7 +10,6 @@ export default function NewDecomRequest() {
   const [targetType, setTargetType] = useState<'vm' | 'deployment'>('vm')
   const [targetId, setTargetId] = useState('')
   const [reason, setReason] = useState('')
-  const [reviewDate, setReviewDate] = useState('')
   const [error, setError] = useState('')
 
   // Fetch completed VMs/CTs (large page to get all)
@@ -50,7 +49,6 @@ export default function NewDecomRequest() {
           ? { vm_request_id: Number(targetId) }
           : { deployment_id: Number(targetId) }),
         reason: reason.trim(),
-        ...(reviewDate ? { review_date: new Date(reviewDate).toISOString() } : {}),
       },
       {
         onSuccess: (data) => navigate(`/decom/${data.id}`),
@@ -64,7 +62,7 @@ export default function NewDecomRequest() {
       <h1 className="text-2xl font-bold text-gray-900 mb-6">New Decom Request</h1>
       <p className="text-sm text-gray-500 mb-6">
         Request decommissioning of a VM, container, or deployment. This will create a Jira ticket for approval.
-        No resources are destroyed automatically.
+        Once approved and completed, resources are destroyed automatically.
       </p>
 
       <form onSubmit={handleSubmit} className="space-y-5">
@@ -145,22 +143,6 @@ export default function NewDecomRequest() {
             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
             placeholder="Why is this resource being decommissioned?"
           />
-        </div>
-
-        {/* Review date */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Preferred Review Date <span className="text-gray-400 font-normal">(optional)</span>
-          </label>
-          <input
-            type="date"
-            value={reviewDate}
-            onChange={(e) => setReviewDate(e.target.value)}
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-          />
-          <p className="mt-1 text-xs text-gray-400">
-            When should this resource be reviewed for decommissioning? Reminders will be sent.
-          </p>
         </div>
 
         <button
