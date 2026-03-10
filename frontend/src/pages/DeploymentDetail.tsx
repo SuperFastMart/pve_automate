@@ -36,7 +36,8 @@ function DeploymentStatusBadge({ status }: { status: DeploymentStatus }) {
 export default function DeploymentDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { isAdmin } = useAuth()
+  const { user } = useAuth()
+  const isAdmin = user?.isAdmin ?? false
   const { data: deployment, isLoading, error } = useDeployment(Number(id))
   const deleteDeployment = useDeleteDeployment()
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)

@@ -7,7 +7,8 @@ import StatusBadge from '../components/StatusBadge'
 export default function RequestDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { isAdmin } = useAuth()
+  const { user } = useAuth()
+  const isAdmin = user?.isAdmin ?? false
   const { data: req, isLoading, error } = useVMRequest(Number(id))
   const deleteRequest = useDeleteVMRequest()
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
