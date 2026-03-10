@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useVMRequests, useApproveVMRequest, useRejectVMRequest, useRetryVMRequest, useDeleteVMRequest } from '../hooks/useVMRequests'
 import { useDeployments, useApproveDeployment, useRejectDeployment, useRetryDeployment, useDeleteDeployment } from '../hooks/useDeployments'
-import { useDecomRequests, useApproveDecomRequest, useRejectDecomRequest, useStartDecomRequest, useCompleteDecomRequest, useDeleteDecomRequest } from '../hooks/useDecomRequests'
+import { useDecomRequests, useApproveDecomRequest, useRejectDecomRequest, useDeleteDecomRequest } from '../hooks/useDecomRequests'
 import StatusBadge from '../components/StatusBadge'
 import AdminSettings from '../components/AdminSettings'
 import AdminTemplates from '../components/AdminTemplates'
@@ -63,8 +63,6 @@ export default function Admin() {
   const { data: decomData, isLoading: decomLoading } = useDecomRequests(1, 100)
   const approveDecom = useApproveDecomRequest()
   const rejectDecom = useRejectDecomRequest()
-  const startDecom = useStartDecomRequest()
-  const completeDecom = useCompleteDecomRequest()
   const deleteDecomMutation = useDeleteDecomRequest()
   const [confirmDeleteDecomId, setConfirmDeleteDecomId] = useState<number | null>(null)
 
@@ -416,23 +414,11 @@ export default function Admin() {
                                   </button>
                                 </>
                               )}
-                              {d.status === 'approved' && (
-                                <button
-                                  onClick={() => startDecom.mutate(d.id)}
-                                  disabled={startDecom.isPending}
-                                  className="px-2 py-1 text-xs font-medium text-white bg-purple-600 rounded hover:bg-purple-700 disabled:opacity-50"
-                                >
-                                  Start
-                                </button>
-                              )}
                               {(d.status === 'approved' || d.status === 'in_progress') && (
-                                <button
-                                  onClick={() => completeDecom.mutate(d.id)}
-                                  disabled={completeDecom.isPending}
-                                  className="px-2 py-1 text-xs font-medium text-white bg-green-600 rounded hover:bg-green-700 disabled:opacity-50"
-                                >
-                                  Complete
-                                </button>
+                                <span className="px-2 py-1 text-xs font-medium text-purple-700 bg-purple-50 rounded inline-flex items-center gap-1">
+                                  <span className="animate-spin h-3 w-3 border border-purple-600 border-t-transparent rounded-full" />
+                                  Destroying...
+                                </span>
                               )}
                               {confirmDeleteDecomId === d.id ? (
                                 <>

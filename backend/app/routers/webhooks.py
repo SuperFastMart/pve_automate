@@ -210,8 +210,10 @@ async def _handle_decom_request_webhook(
         await db.commit()
         logger.info(f"Auto-approved decom request {decom_request.id} via Jira webhook ({issue_key})")
 
-        from app.routers.decom_requests import _send_decom_email
+        from app.routers.decom_requests import _send_decom_email, execute_decom
         asyncio.create_task(_send_decom_email(decom_request.id, "approved"))
+        # Auto-execute: destroy resources, release IPs, mark completed
+        asyncio.create_task(execute_decom(decom_request.id))
         return {"status": "approved", "decom_request_id": decom_request.id}
 
     elif new_status.lower() == reject_status.lower():

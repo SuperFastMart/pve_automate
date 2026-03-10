@@ -204,7 +204,7 @@ async def approve_decom_request(
     user: AuthenticatedUser = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    """Admin approves the decom request. Resource awaits manual teardown."""
+    """Admin approves the decom request. Auto-triggers destroy pipeline."""
     decom = await _get_decom_or_404(decom_id, db)
     if decom.status != DecomStatus.PENDING_APPROVAL:
         raise HTTPException(status_code=400, detail=f"Cannot approve in '{decom.status.value}' state")
@@ -219,6 +219,8 @@ async def approve_decom_request(
         asyncio.create_task(_sync_jira_transition(decom.jira_issue_key, "approve", "Decom approved via admin UI"))
 
     asyncio.create_task(_send_decom_email(decom.id, "approved"))
+    # Auto-execute: destroy resources, release IPs, mark completed
+    asyncio.create_task(execute_decom(decom.id))
     return _to_response(decom)
 
 
@@ -455,6 +457,84 @@ async def _sync_jira_transition(issue_key: str, action: str, comment: str) -> No
             await jira.close()
     except Exception as e:
         logger.warning(f"Failed to sync {action} to Jira issue {issue_key}: {e}")
+
+
+async def execute_decom(decom_id: int) -> None:
+    """Full auto-decom pipeline: in_progress → destroy resources → release IPs → completed.
+
+    Called as a background task after Jira approval (webhook) or admin approval.
+    Uses its own DB session so it can run independently.
+    """
+    from app.database import async_session
+
+    try:
+        async with async_session() as db:
+            result = await db.execute(select(DecomRequest).where(DecomRequest.id == decom_id))
+            decom = result.scalar_one_or_none()
+            if not decom or decom.status != DecomStatus.APPROVED:
+                logger.warning(f"execute_decom({decom_id}): not found or not in approved state")
+                return
+
+            # Move to in_progress
+            decom.status = DecomStatus.IN_PROGRESS
+            await db.commit()
+
+            if decom.jira_issue_key:
+                await _jira_comment(decom.jira_issue_key, "Decommissioning started (auto)")
+
+            # Collect VMs to destroy
+            vms_to_destroy: list[VMRequest] = []
+            if decom.vm_request_id:
+                result = await db.execute(select(VMRequest).where(VMRequest.id == decom.vm_request_id))
+                vm = result.scalar_one_or_none()
+                if vm:
+                    vms_to_destroy.append(vm)
+            elif decom.deployment_id:
+                result = await db.execute(
+                    select(VMRequest).where(VMRequest.deployment_id == decom.deployment_id)
+                )
+                vms_to_destroy = list(result.scalars().all())
+
+            # Destroy each resource on Proxmox, then release phpIPAM IP
+            for vm in vms_to_destroy:
+                await _destroy_on_proxmox(db, vm, decom.id)
+
+                if vm.phpipam_address_id:
+                    try:
+                        ipam = await get_phpipam_service(db)
+                        if ipam:
+                            await ipam.release_ip(vm.phpipam_address_id)
+                            await ipam.close()
+                            logger.info(f"Released phpIPAM address ID {vm.phpipam_address_id} for decom {decom.id}")
+                    except Exception as e:
+                        logger.warning(f"Failed to release phpIPAM address {vm.phpipam_address_id}: {e}")
+
+                vm.status = RequestStatus.DECOMMISSIONED
+
+            # Mark completed
+            decom.status = DecomStatus.COMPLETED
+            decom.completed_at = datetime.now(timezone.utc)
+            await db.commit()
+
+            logger.info(f"Auto-decom {decom_id} completed successfully")
+
+            if decom.jira_issue_key:
+                await _jira_comment(decom.jira_issue_key, "Decommissioning complete. Resources destroyed, IPs released.")
+
+            await _send_decom_email(decom.id, "completed")
+
+    except Exception as e:
+        logger.error(f"execute_decom({decom_id}) failed: {e}")
+        # Try to record the error
+        try:
+            async with async_session() as db:
+                result = await db.execute(select(DecomRequest).where(DecomRequest.id == decom_id))
+                decom = result.scalar_one_or_none()
+                if decom:
+                    decom.error_message = str(e)
+                    await db.commit()
+        except Exception:
+            pass
 
 
 async def _send_decom_email(decom_id: int, event: str) -> None:

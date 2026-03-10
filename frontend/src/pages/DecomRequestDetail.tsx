@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
-import { useDecomRequest, useApproveDecomRequest, useRejectDecomRequest, useStartDecomRequest, useCompleteDecomRequest, useCancelDecomRequest, useDeleteDecomRequest } from '../hooks/useDecomRequests'
+import { useDecomRequest, useApproveDecomRequest, useRejectDecomRequest, useCancelDecomRequest, useDeleteDecomRequest } from '../hooks/useDecomRequests'
 import { useAuth } from '../auth/AuthContext'
 import StatusBadge from '../components/StatusBadge'
 
@@ -13,13 +13,10 @@ export default function DecomRequestDetail() {
 
   const approve = useApproveDecomRequest()
   const reject = useRejectDecomRequest()
-  const start = useStartDecomRequest()
-  const complete = useCompleteDecomRequest()
   const cancel = useCancelDecomRequest()
   const deleteDecom = useDeleteDecomRequest()
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  const [showCompleteConfirm, setShowCompleteConfirm] = useState(false)
 
   if (isLoading) return <p className="text-gray-500">Loading...</p>
   if (error || !decom) return <p className="text-red-600">Decom request not found.</p>
@@ -79,74 +76,44 @@ export default function DecomRequestDetail() {
         </div>
       )}
 
+      {/* In Progress indicator */}
+      {(isApproved || isInProgress) && (
+        <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-6">
+          <div className="flex items-center gap-3">
+            <div className="animate-spin h-5 w-5 border-2 border-purple-600 border-t-transparent rounded-full" />
+            <p className="text-sm font-medium text-purple-800">
+              {isApproved ? 'Approved — auto-destroy starting...' : 'Destroying resources and releasing IPs...'}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Admin Actions */}
-      {isAdmin && (isPending || isApproved || isInProgress) && (
+      {isAdmin && isPending && (
         <div className="bg-white rounded-lg shadow p-4 mb-6">
           <h3 className="text-sm font-semibold text-gray-700 mb-3">Admin Actions</h3>
           <div className="flex flex-wrap gap-2">
-            {isPending && (
-              <>
-                <button
-                  onClick={() => approve.mutate(Number(id))}
-                  disabled={approve.isPending}
-                  className="px-4 py-2 text-sm bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
-                >
-                  {approve.isPending ? 'Approving...' : 'Approve'}
-                </button>
-                <button
-                  onClick={() => reject.mutate(Number(id))}
-                  disabled={reject.isPending}
-                  className="px-4 py-2 text-sm bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
-                >
-                  {reject.isPending ? 'Rejecting...' : 'Reject'}
-                </button>
-              </>
-            )}
-            {isApproved && (
-              <button
-                onClick={() => start.mutate(Number(id))}
-                disabled={start.isPending}
-                className="px-4 py-2 text-sm bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50"
-              >
-                {start.isPending ? 'Starting...' : 'Start Teardown'}
-              </button>
-            )}
-            {(isApproved || isInProgress) && (
-              showCompleteConfirm ? (
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-600">This will release IPs and mark resources as decommissioned.</span>
-                  <button
-                    onClick={() => complete.mutate(Number(id), { onSuccess: () => setShowCompleteConfirm(false) })}
-                    disabled={complete.isPending}
-                    className="px-4 py-2 text-sm bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
-                  >
-                    {complete.isPending ? 'Completing...' : 'Confirm Complete'}
-                  </button>
-                  <button
-                    onClick={() => setShowCompleteConfirm(false)}
-                    className="px-3 py-2 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => setShowCompleteConfirm(true)}
-                  className="px-4 py-2 text-sm bg-green-600 text-white rounded hover:bg-green-700"
-                >
-                  Mark Complete
-                </button>
-              )
-            )}
-            {canCancel && (
-              <button
-                onClick={() => cancel.mutate(Number(id))}
-                disabled={cancel.isPending}
-                className="px-4 py-2 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300 disabled:opacity-50"
-              >
-                {cancel.isPending ? 'Cancelling...' : 'Cancel Request'}
-              </button>
-            )}
+            <button
+              onClick={() => approve.mutate(Number(id))}
+              disabled={approve.isPending}
+              className="px-4 py-2 text-sm bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+            >
+              {approve.isPending ? 'Approving...' : 'Approve'}
+            </button>
+            <button
+              onClick={() => reject.mutate(Number(id))}
+              disabled={reject.isPending}
+              className="px-4 py-2 text-sm bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+            >
+              {reject.isPending ? 'Rejecting...' : 'Reject'}
+            </button>
+            <button
+              onClick={() => cancel.mutate(Number(id))}
+              disabled={cancel.isPending}
+              className="px-4 py-2 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300 disabled:opacity-50"
+            >
+              {cancel.isPending ? 'Cancelling...' : 'Cancel Request'}
+            </button>
           </div>
         </div>
       )}
