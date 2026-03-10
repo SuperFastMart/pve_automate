@@ -60,7 +60,7 @@ export default function AdminTemplates() {
       os_family: 'linux',
       cloud_init: !isLXC,
       environment_id: tmpl.environment_id ?? selectedEnvId ?? null,
-      template_type: tmpl.template_type ?? templateType,
+      template_type: (tmpl.template_type as TemplateType) ?? templateType,
     })
   }
 
