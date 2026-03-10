@@ -72,6 +72,8 @@ async def create_vm_request(
         environment_id=payload.environment_id,
         environment_name=environment_name,
         mtu=payload.mtu,
+        bridge=payload.bridge,
+        vlan_tag=payload.vlan_tag,
         enable_ssh_root=payload.enable_ssh_root,
         status=RequestStatus.PENDING_APPROVAL,
     )

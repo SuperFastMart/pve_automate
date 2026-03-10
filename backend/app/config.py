@@ -149,8 +149,12 @@ async def get_effective_setting(key: str, db) -> str:
 CONFIG_DIR = Path(__file__).parent.parent / "config"
 
 
-def load_tshirt_sizes() -> dict:
-    with open(CONFIG_DIR / "tshirt_sizes.yaml") as f:
+def load_tshirt_sizes(resource_type: str | None = None) -> dict:
+    filename = "tshirt_sizes_lxc.yaml" if resource_type == "lxc" else "tshirt_sizes.yaml"
+    filepath = CONFIG_DIR / filename
+    if not filepath.exists():
+        filepath = CONFIG_DIR / "tshirt_sizes.yaml"
+    with open(filepath) as f:
         return yaml.safe_load(f)["sizes"]
 
 

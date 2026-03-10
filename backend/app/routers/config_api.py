@@ -30,9 +30,10 @@ async def get_current_user_info(
 
 @router.get("/tshirt-sizes")
 async def get_tshirt_sizes(
+    resource_type: str | None = None,
     user: AuthenticatedUser = Depends(get_current_user),
 ):
-    return load_tshirt_sizes()
+    return load_tshirt_sizes(resource_type)
 
 
 @router.get("/os-templates")

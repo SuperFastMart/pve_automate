@@ -178,10 +178,13 @@ async def _provision_proxmox_lxc(db, vm_request: VMRequest, pve: ProxmoxService)
     logger.info(f"Allocated VMID {new_vmid} for LXC {vm_request.vm_name}")
 
     # Build network config
-    net_parts = ["name=eth0", "bridge=vmbr0"]
+    bridge = vm_request.bridge or "vmbr0"
+    net_parts = ["name=eth0", f"bridge={bridge}"]
     if vm_request.ip_address:
         cidr = vm_request.ip_address if "/" in vm_request.ip_address else f"{vm_request.ip_address}/24"
         net_parts.append(f"ip={cidr}")
+    if vm_request.vlan_tag:
+        net_parts.append(f"tag={vm_request.vlan_tag}")
     if vm_request.mtu:
         net_parts.append(f"mtu={vm_request.mtu}")
     net_parts.append("type=veth")

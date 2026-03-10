@@ -29,6 +29,8 @@ class VMRequestCreate(BaseModel):
 
     # LXC-specific options
     mtu: Optional[int] = Field(None, ge=576, le=9216)
+    bridge: Optional[str] = None
+    vlan_tag: Optional[int] = None
     enable_ssh_root: Optional[bool] = None
 
     @model_validator(mode="after")
@@ -73,6 +75,8 @@ class VMRequestResponse(BaseModel):
     environment_name: Optional[str]
     deployment_id: Optional[int]
     mtu: Optional[int] = None
+    bridge: Optional[str] = None
+    vlan_tag: Optional[int] = None
     enable_ssh_root: Optional[bool] = None
     error_message: Optional[str]
     created_at: datetime

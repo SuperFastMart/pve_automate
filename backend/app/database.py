@@ -207,6 +207,12 @@ def _upgrade_add_lxc_support(conn):
         conn.execute(text("ALTER TABLE vm_requests ADD COLUMN enable_ssh_root BOOLEAN"))
         logger.info("Migration complete: vm_requests now has LXC columns")
 
+    if vm_cols and "bridge" not in vm_cols:
+        logger.info("Migrating vm_requests: adding bridge and vlan_tag columns")
+        conn.execute(text("ALTER TABLE vm_requests ADD COLUMN bridge VARCHAR(20)"))
+        conn.execute(text("ALTER TABLE vm_requests ADD COLUMN vlan_tag INTEGER"))
+        logger.info("Migration complete: vm_requests now has bridge and vlan_tag")
+
     # deployments: add resource_type
     result = conn.execute(text("PRAGMA table_info(deployments)"))
     dep_cols = [row[1] for row in result]

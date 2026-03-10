@@ -43,10 +43,10 @@ export function useCreateVMRequest() {
   })
 }
 
-export function useTShirtSizes() {
+export function useTShirtSizes(resourceType?: string) {
   return useQuery({
-    queryKey: ['tshirt-sizes'],
-    queryFn: getTShirtSizes,
+    queryKey: ['tshirt-sizes', resourceType ?? 'vm'],
+    queryFn: () => getTShirtSizes(resourceType),
     staleTime: Infinity,
   })
 }

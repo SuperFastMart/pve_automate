@@ -90,8 +90,10 @@ export async function getVMRequest(id: number): Promise<VMRequest> {
   return data
 }
 
-export async function getTShirtSizes(): Promise<TShirtSizes> {
-  const { data } = await api.get<TShirtSizes>('/config/tshirt-sizes')
+export async function getTShirtSizes(resourceType?: string): Promise<TShirtSizes> {
+  const params: Record<string, string> = {}
+  if (resourceType) params.resource_type = resourceType
+  const { data } = await api.get<TShirtSizes>('/config/tshirt-sizes', { params })
   return data
 }
 
@@ -251,6 +253,8 @@ export interface DeploymentVMPayload {
   disk_gb?: number
   mtu?: number
   enable_ssh_root?: boolean
+  bridge?: string
+  vlan_tag?: number
 }
 
 export interface CreateDeploymentPayload {

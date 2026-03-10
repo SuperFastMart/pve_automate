@@ -62,6 +62,8 @@ class VMRequest(Base):
 
     # LXC-specific options
     mtu = Column(Integer, nullable=True)  # MTU override (null = inherit from host)
+    bridge = Column(String(20), nullable=True)  # Network bridge (e.g. vmbr0, vmbr1)
+    vlan_tag = Column(Integer, nullable=True)  # VLAN tag (e.g. 400)
     enable_ssh_root = Column(Boolean, nullable=True)  # Enable PermitRootLogin in sshd_config
 
     # Relationships

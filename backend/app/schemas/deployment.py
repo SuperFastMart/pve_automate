@@ -27,6 +27,8 @@ class DeploymentVMItem(BaseModel):
 
     # LXC-specific options (per-item override)
     mtu: Optional[int] = Field(None, ge=576, le=9216)
+    bridge: Optional[str] = None
+    vlan_tag: Optional[int] = None
     enable_ssh_root: Optional[bool] = None
 
 

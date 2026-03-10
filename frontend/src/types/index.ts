@@ -34,6 +34,8 @@ export interface VMRequest {
   deployment_id: number | null
   mtu: number | null
   enable_ssh_root: boolean | null
+  bridge: string | null
+  vlan_tag: number | null
   error_message: string | null
   created_at: string
   updated_at: string

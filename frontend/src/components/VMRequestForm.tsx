@@ -35,7 +35,7 @@ export default function VMRequestForm({ resourceType }: Props) {
   const navigate = useNavigate()
   const { user } = useAuth()
   const createRequest = useCreateVMRequest()
-  const { data: sizes, isLoading: sizesLoading } = useTShirtSizes()
+  const { data: sizes, isLoading: sizesLoading } = useTShirtSizes(resourceType)
   const { data: workloadTypes, isLoading: workloadsLoading } = useWorkloadTypes()
   const { data: subnets } = useQuery({ queryKey: ['subnets'], queryFn: getSubnets })
   const { data: locations } = useQuery({ queryKey: ['locations'], queryFn: getLocations })
@@ -48,6 +48,8 @@ export default function VMRequestForm({ resourceType }: Props) {
   // LXC-specific state
   const [mtu, setMtu] = useState<string>('')
   const [enableSshRoot, setEnableSshRoot] = useState(true)
+  const [bridge, setBridge] = useState<string>('vmbr1')
+  const [vlanTag, setVlanTag] = useState<string>('400')
 
   const isLxc = resourceType === 'lxc'
   const nameLabel = isLxc ? 'Container Name' : 'VM Name'
@@ -72,6 +74,15 @@ export default function VMRequestForm({ resourceType }: Props) {
       setValue('os_template', '')
     }
   }, [selectedLocation]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-scope location when environment is selected
+  useEffect(() => {
+    if (!selectedEnvironment || !environments) return
+    const env = environments.find((e) => String(e.id) === selectedEnvironment)
+    if (env?.location_id && String(env.location_id) !== selectedLocation) {
+      setSelectedLocation(String(env.location_id))
+    }
+  }, [selectedEnvironment]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Reset OS template when resource type changes
   useEffect(() => {
@@ -165,6 +176,8 @@ export default function VMRequestForm({ resourceType }: Props) {
       } : {}),
       ...(isLxc && mtu ? { mtu: Number(mtu) } : {}),
       ...(isLxc ? { enable_ssh_root: enableSshRoot } : {}),
+      ...(isLxc && bridge ? { bridge } : {}),
+      ...(isLxc && vlanTag ? { vlan_tag: Number(vlanTag) } : {}),
     }
     const result = await createRequest.mutateAsync(payload)
     navigate(`/request/${result.id}`)
@@ -421,11 +434,41 @@ export default function VMRequestForm({ resourceType }: Props) {
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Container Options</h2>
           <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  MTU Override
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Network Bridge</label>
+                <select
+                  value={bridge}
+                  onChange={(e) => setBridge(e.target.value)}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                >
+                  {['vmbr0', 'vmbr1', 'vmbr2', 'vmbr3', 'vmbr4'].map((b) => (
+                    <option key={b} value={b}>
+                      {b}{b === 'vmbr1' ? ' (recommended)' : ''}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-gray-400">
+                  Bridge interface on the Proxmox host
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">VLAN Tag</label>
+                <input
+                  type="number"
+                  value={vlanTag}
+                  onChange={(e) => setVlanTag(e.target.value)}
+                  min={1}
+                  max={4094}
+                  placeholder="No VLAN"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                />
+                <p className="mt-1 text-xs text-gray-400">
+                  802.1Q VLAN tag (typically 400 for containers)
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">MTU Override</label>
                 <input
                   type="number"
                   value={mtu}
@@ -436,7 +479,7 @@ export default function VMRequestForm({ resourceType }: Props) {
                   className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
                 />
                 <p className="mt-1 text-xs text-gray-400">
-                  Leave empty to inherit from the host bridge. Set to 9000 for jumbo frames.
+                  Leave empty to inherit. Set 9000 for jumbo frames.
                 </p>
               </div>
               <div className="flex items-center gap-3 pt-6">
@@ -452,7 +495,7 @@ export default function VMRequestForm({ resourceType }: Props) {
                     Enable root SSH login
                   </label>
                   <p className="text-xs text-gray-400">
-                    Configures PermitRootLogin in sshd_config after creation
+                    Configures PermitRootLogin in sshd_config
                   </p>
                 </div>
               </div>

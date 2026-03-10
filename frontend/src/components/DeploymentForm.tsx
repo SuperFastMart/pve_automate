@@ -19,6 +19,8 @@ interface VMEntry {
   disk_gb: string
   mtu: string
   enable_ssh_root: boolean
+  bridge: string
+  vlan_tag: string
 }
 
 const emptyVM: VMEntry = {
@@ -32,6 +34,8 @@ const emptyVM: VMEntry = {
   disk_gb: '',
   mtu: '',
   enable_ssh_root: true,
+  bridge: 'vmbr1',
+  vlan_tag: '400',
 }
 
 interface DeploymentFormProps {
@@ -43,7 +47,7 @@ export default function DeploymentForm({ resourceType }: DeploymentFormProps) {
   const { user } = useAuth()
   const createDeployment = useCreateDeployment()
   const { data: workloadTypes, isLoading: workloadsLoading } = useWorkloadTypes()
-  const { data: sizes, isLoading: sizesLoading } = useTShirtSizes()
+  const { data: sizes, isLoading: sizesLoading } = useTShirtSizes(resourceType)
   const { data: subnets } = useQuery({ queryKey: ['subnets'], queryFn: getSubnets })
   const { data: locations } = useQuery({ queryKey: ['locations'], queryFn: getLocations })
   const { data: environments } = useQuery({ queryKey: ['environments'], queryFn: () => getEnvironments() })
@@ -76,6 +80,15 @@ export default function DeploymentForm({ resourceType }: DeploymentFormProps) {
   // VM list
   const [vms, setVms] = useState<VMEntry[]>([{ ...emptyVM }])
   const [errors, setErrors] = useState<string[]>([])
+
+  // Auto-scope location when environment is selected
+  useEffect(() => {
+    if (!selectedEnvironment || !environments) return
+    const env = environments.find((e) => String(e.id) === selectedEnvironment)
+    if (env?.location_id && String(env.location_id) !== selectedLocation) {
+      setSelectedLocation(String(env.location_id))
+    }
+  }, [selectedEnvironment]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Reset templates when resource type changes
   useEffect(() => {
@@ -176,6 +189,8 @@ export default function DeploymentForm({ resourceType }: DeploymentFormProps) {
         : {}),
       ...(isLXC && vm.mtu ? { mtu: Number(vm.mtu) } : {}),
       ...(isLXC ? { enable_ssh_root: vm.enable_ssh_root } : {}),
+      ...(isLXC && vm.bridge ? { bridge: vm.bridge } : {}),
+      ...(isLXC && vm.vlan_tag ? { vlan_tag: Number(vm.vlan_tag) } : {}),
     }))
 
     const result = await createDeployment.mutateAsync({
@@ -429,27 +444,51 @@ export default function DeploymentForm({ resourceType }: DeploymentFormProps) {
               {isLXC && (
                 <div className="mt-3 p-3 bg-amber-50 rounded-md border border-amber-200">
                   <h4 className="text-xs font-semibold text-amber-800 mb-2">Container Options</h4>
-                  <div className="flex flex-wrap items-center gap-4">
-                    <div className="flex items-center gap-2">
-                      <label className="text-xs font-medium text-gray-600 whitespace-nowrap">MTU Override</label>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Bridge</label>
+                      <select
+                        value={vm.bridge}
+                        onChange={(e) => updateVM(index, 'bridge', e.target.value)}
+                        className="w-full rounded-md border border-gray-300 px-2 py-1 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                      >
+                        {['vmbr0', 'vmbr1', 'vmbr2', 'vmbr3', 'vmbr4'].map((b) => (
+                          <option key={b} value={b}>
+                            {b}{b === 'vmbr1' ? ' (rec.)' : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">VLAN Tag</label>
+                      <input
+                        type="number"
+                        value={vm.vlan_tag}
+                        onChange={(e) => updateVM(index, 'vlan_tag', e.target.value)}
+                        min={1} max={4094}
+                        className="w-full rounded-md border border-gray-300 px-2 py-1 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                        placeholder="None"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">MTU</label>
                       <input
                         type="number"
                         value={vm.mtu}
                         onChange={(e) => updateVM(index, 'mtu', e.target.value)}
                         min={68} max={65535}
-                        className="w-24 rounded-md border border-gray-300 px-2 py-1 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                        className="w-full rounded-md border border-gray-300 px-2 py-1 text-sm focus:border-indigo-500 focus:ring-indigo-500"
                         placeholder="Inherit"
                       />
-                      <span className="text-xs text-gray-400">Leave blank to inherit from host</span>
                     </div>
-                    <label className="flex items-center gap-1.5 cursor-pointer">
+                    <label className="flex items-center gap-1.5 cursor-pointer pt-5">
                       <input
                         type="checkbox"
                         checked={vm.enable_ssh_root}
                         onChange={(e) => updateVM(index, 'enable_ssh_root', e.target.checked)}
                         className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                       />
-                      <span className="text-xs font-medium text-gray-600">Enable root SSH login</span>
+                      <span className="text-xs font-medium text-gray-600">Root SSH</span>
                     </label>
                   </div>
                 </div>

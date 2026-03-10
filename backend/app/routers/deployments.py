@@ -107,6 +107,8 @@ async def create_deployment(
             environment_name=environment_name,
             deployment_id=deployment.id,
             mtu=vm.mtu,
+            bridge=vm.bridge,
+            vlan_tag=vm.vlan_tag,
             enable_ssh_root=vm.enable_ssh_root,
             status=RequestStatus.PENDING_APPROVAL,
         )
