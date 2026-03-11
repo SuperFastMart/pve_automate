@@ -22,6 +22,8 @@ interface VMEntry {
   bridge: string
   vlan_tag: string
   root_password: string
+  enable_ha: boolean
+  enable_backup: boolean
 }
 
 const emptyVM: VMEntry = {
@@ -38,6 +40,8 @@ const emptyVM: VMEntry = {
   bridge: 'vmbr1',
   vlan_tag: '400',
   root_password: '',
+  enable_ha: false,
+  enable_backup: false,
 }
 
 interface DeploymentFormProps {
@@ -199,6 +203,8 @@ export default function DeploymentForm({ resourceType }: DeploymentFormProps) {
       ...(isLXC && vm.bridge ? { bridge: vm.bridge } : {}),
       ...(isLXC && vm.vlan_tag ? { vlan_tag: Number(vm.vlan_tag) } : {}),
       ...(isLXC && vm.root_password ? { root_password: vm.root_password } : {}),
+      ...(vm.enable_ha ? { enable_ha: true } : {}),
+      ...(vm.enable_backup ? { enable_backup: true } : {}),
     }))
 
     const result = await createDeployment.mutateAsync({
@@ -523,6 +529,28 @@ export default function DeploymentForm({ resourceType }: DeploymentFormProps) {
                   className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:ring-indigo-500"
                   placeholder={isLXC ? 'Docker host' : 'Application server'}
                 />
+              </div>
+
+              {/* Post-Provisioning Options */}
+              <div className="mt-3 flex items-center gap-4">
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={vm.enable_ha}
+                    onChange={(e) => updateVM(index, 'enable_ha', e.target.checked)}
+                    className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                  />
+                  <span className="text-xs font-medium text-gray-600">Enable HA</span>
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={vm.enable_backup}
+                    onChange={(e) => updateVM(index, 'enable_backup', e.target.checked)}
+                    className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                  />
+                  <span className="text-xs font-medium text-gray-600">Enable Backup</span>
+                </label>
               </div>
             </div>
           ))}

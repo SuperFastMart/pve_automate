@@ -263,6 +263,8 @@ export interface DeploymentVMPayload {
   bridge?: string
   vlan_tag?: number
   root_password?: string
+  enable_ha?: boolean
+  enable_backup?: boolean
 }
 
 export interface CreateDeploymentPayload {
