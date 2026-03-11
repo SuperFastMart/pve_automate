@@ -71,6 +71,10 @@ class VMRequest(Base):
     enable_ssh_root = Column(Boolean, nullable=True)  # Enable PermitRootLogin in sshd_config
     root_password = Column(Text, nullable=True)  # Root password for LXC containers
 
+    # Post-provisioning options
+    enable_ha = Column(Boolean, nullable=True)  # Add to Proxmox HA cluster resources
+    enable_backup = Column(Boolean, nullable=True)  # Add to Proxmox backup job
+
     # Relationships
     deployment = relationship("Deployment", back_populates="vm_requests")
 

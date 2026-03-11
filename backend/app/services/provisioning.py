@@ -103,6 +103,27 @@ async def _resolve_template(db, template_key: str, environment_id: int | None = 
     )
 
 
+# ── Post-provisioning: HA & Backup ──────────────────────────────
+
+async def _post_provision_ha_backup(
+    pve: ProxmoxService, vmid: int, vm_request: VMRequest, resource_type: str
+) -> None:
+    """Register with HA and/or add to backup job if requested. Non-fatal on error."""
+    if vm_request.enable_ha:
+        try:
+            await asyncio.to_thread(pve.add_to_ha, vmid, resource_type)
+            logger.info(f"HA enabled for {resource_type}:{vmid}")
+        except Exception as e:
+            logger.warning(f"Failed to enable HA for {resource_type}:{vmid}: {e}")
+
+    if vm_request.enable_backup:
+        try:
+            await asyncio.to_thread(pve.add_to_backup_job, vmid)
+            logger.info(f"Backup enabled for VMID {vmid}")
+        except Exception as e:
+            logger.warning(f"Failed to add VMID {vmid} to backup job: {e}")
+
+
 # ── Proxmox provisioning ────────────────────────────────────────
 
 async def _provision_proxmox_vm(db, vm_request: VMRequest, pve: ProxmoxService) -> None:
@@ -150,6 +171,9 @@ async def _provision_proxmox_vm(db, vm_request: VMRequest, pve: ProxmoxService) 
     start_upid = await asyncio.to_thread(pve.start_vm, target_node, new_vmid)
     await asyncio.to_thread(pve.wait_for_task, target_node, start_upid, 120)
     logger.info(f"Started VMID {new_vmid}")
+
+    # Post-provisioning: HA and Backup
+    await _post_provision_ha_backup(pve, new_vmid, vm_request, "vm")
 
     # Update DB — legacy + generic fields
     vm_request.status = RequestStatus.COMPLETED
@@ -228,6 +252,9 @@ async def _provision_proxmox_lxc(db, vm_request: VMRequest, pve: ProxmoxService)
         logger.info(f"Configuring SSH root login for LXC {new_vmid}...")
         await asyncio.sleep(8)  # Wait for sshd to be fully up inside the container
         await asyncio.to_thread(pve.configure_lxc_ssh_root, target_node, new_vmid)
+
+    # Post-provisioning: HA and Backup
+    await _post_provision_ha_backup(pve, new_vmid, vm_request, "ct")
 
     # Update DB
     vm_request.status = RequestStatus.COMPLETED

@@ -45,6 +45,10 @@ export default function VMRequestForm({ resourceType }: Props) {
   const { data: templates, isLoading: templatesLoading } = useOSTemplates(environmentId, resourceType)
   const [selectedLocation, setSelectedLocation] = useState<string>('')
 
+  // Post-provisioning options
+  const [enableHa, setEnableHa] = useState(false)
+  const [enableBackup, setEnableBackup] = useState(false)
+
   // LXC-specific state
   const [mtu, setMtu] = useState<string>('')
   const [enableSshRoot, setEnableSshRoot] = useState(true)
@@ -185,6 +189,8 @@ export default function VMRequestForm({ resourceType }: Props) {
       ...(isLxc && bridge ? { bridge } : {}),
       ...(isLxc && vlanTag ? { vlan_tag: Number(vlanTag) } : {}),
       ...(isLxc && rootPassword ? { root_password: rootPassword } : {}),
+      ...(enableHa ? { enable_ha: true } : {}),
+      ...(enableBackup ? { enable_backup: true } : {}),
     }
     const result = await createRequest.mutateAsync(payload)
     navigate(`/request/${result.id}`)
@@ -623,6 +629,47 @@ export default function VMRequestForm({ resourceType }: Props) {
             )}
           </div>
         )}
+      </div>
+
+      {/* Post-Provisioning Options */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Post-Provisioning Options</h2>
+        <div className="space-y-3">
+          <div className="flex items-center gap-3">
+            <input
+              type="checkbox"
+              id="enable-ha"
+              checked={enableHa}
+              onChange={(e) => setEnableHa(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+            />
+            <div>
+              <label htmlFor="enable-ha" className="text-sm font-medium text-gray-700">
+                Enable High Availability
+              </label>
+              <p className="text-xs text-gray-400">
+                Registers the {isLxc ? 'container' : 'VM'} with the Proxmox HA manager for automatic failover
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <input
+              type="checkbox"
+              id="enable-backup"
+              checked={enableBackup}
+              onChange={(e) => setEnableBackup(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+            />
+            <div>
+              <label htmlFor="enable-backup" className="text-sm font-medium text-gray-700">
+                Enable Backup
+              </label>
+              <p className="text-xs text-gray-400">
+                Adds the {isLxc ? 'container' : 'VM'} to the Proxmox Backup Server scheduled job
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Submit */}

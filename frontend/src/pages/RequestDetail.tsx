@@ -32,6 +32,8 @@ export default function RequestDetail() {
     ...(isLXC && req.mtu ? [{ label: 'MTU', value: String(req.mtu) }] : []),
     ...(isLXC ? [{ label: 'Root SSH Login', value: req.enable_ssh_root ? 'Enabled' : 'Disabled' }] : []),
     ...(isLXC && req.root_password ? [{ label: 'Root Password', value: req.root_password }] : []),
+    ...(req.enable_ha != null ? [{ label: 'High Availability', value: req.enable_ha ? 'Enabled' : 'Disabled' }] : []),
+    ...(req.enable_backup != null ? [{ label: 'Backup', value: req.enable_backup ? 'Enabled' : 'Disabled' }] : []),
   ]
 
   const provisioningDetails = [

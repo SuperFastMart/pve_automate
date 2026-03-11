@@ -41,6 +41,8 @@ export interface VMRequest {
   bridge: string | null
   vlan_tag: number | null
   root_password: string | null
+  enable_ha: boolean | null
+  enable_backup: boolean | null
   error_message: string | null
   created_at: string
   updated_at: string

@@ -34,6 +34,10 @@ class VMRequestCreate(BaseModel):
     enable_ssh_root: Optional[bool] = None
     root_password: Optional[str] = None
 
+    # Post-provisioning options
+    enable_ha: Optional[bool] = None
+    enable_backup: Optional[bool] = None
+
     @model_validator(mode="after")
     def validate_custom_size(self):
         if self.tshirt_size == "Custom":
@@ -83,6 +87,8 @@ class VMRequestResponse(BaseModel):
     vlan_tag: Optional[int] = None
     enable_ssh_root: Optional[bool] = None
     root_password: Optional[str] = None
+    enable_ha: Optional[bool] = None
+    enable_backup: Optional[bool] = None
     error_message: Optional[str]
     created_at: datetime
     updated_at: datetime

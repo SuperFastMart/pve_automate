@@ -339,6 +339,45 @@ class ProxmoxService:
             params["destroy-unreferenced-disks"] = 1
         return self.proxmox.nodes(node).lxc(vmid).delete(**params)
 
+    def add_to_ha(self, vmid: int, resource_type: str = "vm") -> None:
+        """Register a VM or CT with the Proxmox HA manager."""
+        sid = f"{resource_type}:{vmid}"
+        self.proxmox.cluster.ha.resources.post(sid=sid, state="started")
+        logger.info(f"Added {sid} to HA resources")
+
+    def add_to_backup_job(self, vmid: int) -> None:
+        """Add a VMID to the first backup job that uses 'include' selection mode.
+
+        Finds the existing backup job and appends the VMID to its vmid list.
+        """
+        jobs = self.proxmox.cluster.backup.get()
+        target_job = None
+        for job in jobs:
+            # Selection mode "include" means the job uses an explicit vmid list
+            if job.get("selmode") == "include" or job.get("vmid"):
+                target_job = job
+                break
+
+        if not target_job:
+            logger.warning(f"No backup job with 'include' selection found — skipping backup for VMID {vmid}")
+            return
+
+        job_id = target_job["id"]
+        existing_vmids = str(target_job.get("vmid", "")).strip()
+        vmid_str = str(vmid)
+
+        # Check if already in the list
+        current_list = [v.strip() for v in existing_vmids.split(",") if v.strip()] if existing_vmids else []
+        if vmid_str in current_list:
+            logger.info(f"VMID {vmid} already in backup job {job_id}")
+            return
+
+        current_list.append(vmid_str)
+        new_vmid_list = ",".join(current_list)
+
+        self.proxmox.cluster.backup(job_id).put(vmid=new_vmid_list)
+        logger.info(f"Added VMID {vmid} to backup job {job_id} (now: {new_vmid_list})")
+
     def configure_lxc_ssh_root(self, node: str, vmid: int) -> None:
         """Enable root SSH login inside a running LXC container.
 

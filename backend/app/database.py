@@ -255,6 +255,19 @@ def _upgrade_environments_add_lxc_defaults(conn):
     logger.info("Migration complete: pve_environments now has default_bridge and default_vlan_tag")
 
 
+def _upgrade_add_ha_backup(conn):
+    """Add enable_ha and enable_backup columns to vm_requests."""
+    result = conn.execute(text("PRAGMA table_info(vm_requests)"))
+    columns = [row[1] for row in result]
+    if not columns or "enable_ha" in columns:
+        return
+
+    logger.info("Migrating vm_requests: adding enable_ha and enable_backup columns")
+    conn.execute(text("ALTER TABLE vm_requests ADD COLUMN enable_ha BOOLEAN"))
+    conn.execute(text("ALTER TABLE vm_requests ADD COLUMN enable_backup BOOLEAN"))
+    logger.info("Migration complete: vm_requests now has enable_ha and enable_backup")
+
+
 async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(_upgrade_os_template_table)
@@ -263,4 +276,5 @@ async def init_db():
         await conn.run_sync(_upgrade_os_templates_add_template_ref)
         await conn.run_sync(_upgrade_add_lxc_support)
         await conn.run_sync(_upgrade_environments_add_lxc_defaults)
+        await conn.run_sync(_upgrade_add_ha_backup)
         await conn.run_sync(Base.metadata.create_all)
