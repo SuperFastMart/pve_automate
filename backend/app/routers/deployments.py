@@ -118,6 +118,8 @@ async def create_deployment(
             vlan_tag=vm.vlan_tag,
             enable_ssh_root=vm.enable_ssh_root,
             root_password=root_password,
+            enable_ha=vm.enable_ha,
+            enable_backup=vm.enable_backup,
             status=RequestStatus.PENDING_APPROVAL,
         )
         db.add(vm_request)

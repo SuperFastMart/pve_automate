@@ -111,6 +111,8 @@ async def create_vm_request(
         vlan_tag=payload.vlan_tag,
         enable_ssh_root=payload.enable_ssh_root,
         root_password=root_password,
+        enable_ha=payload.enable_ha,
+        enable_backup=payload.enable_backup,
         status=RequestStatus.PENDING_APPROVAL,
     )
 

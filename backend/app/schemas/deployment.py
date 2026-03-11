@@ -31,6 +31,8 @@ class DeploymentVMItem(BaseModel):
     vlan_tag: Optional[int] = None
     enable_ssh_root: Optional[bool] = None
     root_password: Optional[str] = None
+    enable_ha: Optional[bool] = None
+    enable_backup: Optional[bool] = None
 
 
 class DeploymentCreate(BaseModel):
